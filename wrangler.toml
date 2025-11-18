@@ -1,0 +1,7 @@
+name = "preloaded_state"
+account_id = "5dc36ef7b37a69500bd080cb310ba2ce"
+main = "build/index.js"
+compatibility_date = "2025-11-18"
+
+[build]
+command = "cargo install -q worker-build && worker-build --release"

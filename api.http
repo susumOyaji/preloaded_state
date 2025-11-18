@@ -1,0 +1,19 @@
+### Base request (will result in an error asking for a code)
+GET http://localhost:8787/
+
+### Request a single Japanese stock (Toyota)
+GET http://localhost:8787/?code=7203.T
+
+
+
+### Request a single index (Dow Jones)
+GET http://localhost:8787/?code=^DJI
+
+### Request multiple codes at once
+GET http://localhost:8787/?code=7203.T,^DJI,USD/JPY
+
+### Request specific keys for a single code
+GET http://localhost:8787/?code=7203.T&keys=code,name,price
+
+### Request specific keys for multiple codes
+GET http://localhost:8787/?code=9984.T,^N225&keys=code,name,price,price_change_rate
