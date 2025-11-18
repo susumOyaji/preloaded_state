@@ -2,15 +2,19 @@
 GET http://localhost:8787/
 
 ### Request a single Japanese stock (Toyota)
-GET http://localhost:8787/?code=7203.T
+GET http://localhost:8787/?code=6758.T,5016.T
 
-
+### Request a single Japanese stock (Nikkei)
+GET http://localhost:8787/?code=998407.O
 
 ### Request a single index (Dow Jones)
 GET http://localhost:8787/?code=^DJI
 
+### Request a single forex pair (USDJPY=X)
+GET http://localhost:8787/?code=USDJPY=X
+
 ### Request multiple codes at once
-GET http://localhost:8787/?code=7203.T,^DJI,USD/JPY
+GET http://localhost:8787/?code=7203.T,^DJI,USDJPY=X
 
 ### Request specific keys for a single code
 GET http://localhost:8787/?code=7203.T&keys=code,name,price

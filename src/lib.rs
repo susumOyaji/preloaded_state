@@ -133,8 +133,14 @@ fn process_json_data(code: &str, data: &Value, keys: Option<&Vec<String>>) -> Re
 
                         if found_code.trim() == code_to_compare {
                             let mut results = Map::new();
-                            if let Some(keys_vec) = keys {
-                                for key in keys_vec {
+                            if keys.is_some() {
+                                // `keys` is present, return all data
+                                results = target_obj.clone();
+                                results.insert("code".to_string(), Value::String(code.to_string()));
+                            } else {
+                                // `keys` is absent, return minimal data
+                                let minimal_keys = vec!["code".to_string(), "name".to_string(), "price".to_string(), "price_change".to_string(), "price_change_rate".to_string(), "update_time".to_string()];
+                                for key in &minimal_keys {
                                     if let Some(json_key) = source.mappings.get(key.as_str()) {
                                         if let Some(value) = target_obj.get(*json_key) {
                                             let str_val = value.to_string().trim_matches('"').to_string();
@@ -144,9 +150,6 @@ fn process_json_data(code: &str, data: &Value, keys: Option<&Vec<String>>) -> Re
                                         results.insert("code".to_string(), Value::String(code.to_string()));
                                     }
                                 }
-                            } else {
-                                results = target_obj.clone();
-                                results.insert("code".to_string(), Value::String(code.to_string()));
                             }
                             results.insert("status".to_string(), Value::String("OK".to_string()));
                             results.insert("source".to_string(), Value::String("json_predefined".to_string()));
@@ -181,8 +184,14 @@ fn process_json_data(code: &str, data: &Value, keys: Option<&Vec<String>>) -> Re
                 let code_to_compare = code.split('.').next().unwrap_or(code);
                 if found_code.trim() == code_to_compare {
                     let mut results = Map::new();
-                    if let Some(keys_vec) = keys {
-                        for key in keys_vec {
+                    if keys.is_some() {
+                        // `keys` is present, return all data
+                        results = obj_map.clone();
+                        results.insert("code".to_string(), Value::String(code.to_string()));
+                    } else {
+                        // `keys` is absent, return minimal data
+                        let minimal_keys = vec!["code".to_string(), "name".to_string(), "price".to_string(), "price_change".to_string(), "price_change_rate".to_string(), "update_time".to_string()];
+                        for key in &minimal_keys {
                             if let Some(json_key) = fallback_mappings.get(key.as_str()) {
                                 if let Some(value) = obj_map.get(*json_key) {
                                     let str_val = value.to_string().trim_matches('"').to_string();
@@ -192,9 +201,6 @@ fn process_json_data(code: &str, data: &Value, keys: Option<&Vec<String>>) -> Re
                                 results.insert("code".to_string(), Value::String(code.to_string()));
                             }
                         }
-                    } else {
-                        results = obj_map.clone();
-                        results.insert("code".to_string(), Value::String(code.to_string()));
                     }
                     results.insert("status".to_string(), Value::String("OK".to_string()));
                     results.insert("source".to_string(), Value::String("json_fallback".to_string()));
@@ -220,10 +226,18 @@ fn process_dom_data(code: &str, body: &str, keys: Option<&Vec<String>>) -> Resul
     selector_map.insert("price_change_rate", "span[class*='_PriceChangeLabel__secondary'] span[class*='_StyledNumber__value']");
     selector_map.insert("update_time", "li[class*='_CommonPriceBoard__time'] time, span[class*='_Time']");
 
-    let keys_to_process = if let Some(k) = keys {
-        k.clone()
+    let keys_to_process = if keys.is_some() {
+        // `keys` is present, process all known fields
+        vec![
+            "code".to_string(),
+            "name".to_string(),
+            "price".to_string(),
+            "price_change".to_string(),
+            "price_change_rate".to_string(),
+            "update_time".to_string(),
+        ]
     } else {
-        // Default keys if not provided (for DOM, this means all known fields)
+        // `keys` is absent, process minimal fields
         vec![
             "code".to_string(),
             "name".to_string(),
