@@ -1,0 +1,1144 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="リアルタイムで株価、指数、為替データを監視するYahoo Finance Tracker">
+    <title>Yahoo Finance Tracker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* Light Theme Colors */
+            --bg-primary: #f5f7fa;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #e8ecf1;
+            --text-primary: #1a202c;
+            --text-secondary: #4a5568;
+            --text-tertiary: #718096;
+            --accent-primary: #667eea;
+            --accent-secondary: #764ba2;
+            --success: #48bb78;
+            --danger: #f56565;
+            --warning: #ed8936;
+            --border: #e2e8f0;
+            --shadow: rgba(0, 0, 0, 0.1);
+            --shadow-lg: rgba(0, 0, 0, 0.15);
+
+            /* Spacing */
+            --spacing-xs: 0.25rem;
+            --spacing-sm: 0.5rem;
+            --spacing-md: 1rem;
+            --spacing-lg: 1.5rem;
+            --spacing-xl: 2rem;
+            --spacing-2xl: 3rem;
+
+            /* Border Radius */
+            --radius-sm: 0.375rem;
+            --radius-md: 0.5rem;
+            --radius-lg: 0.75rem;
+            --radius-xl: 1rem;
+
+            /* Transitions */
+            --transition-fast: 150ms ease;
+            --transition-base: 250ms ease;
+            --transition-slow: 350ms ease;
+        }
+
+        [data-theme="dark"] {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-tertiary: #334155;
+            --text-primary: #f1f5f9;
+            --text-secondary: #cbd5e1;
+            --text-tertiary: #94a3b8;
+            --accent-primary: #818cf8;
+            --accent-secondary: #a78bfa;
+            --success: #34d399;
+            --danger: #f87171;
+            --warning: #fbbf24;
+            --border: #334155;
+            --shadow: rgba(0, 0, 0, 0.3);
+            --shadow-lg: rgba(0, 0, 0, 0.5);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            transition: background var(--transition-base), color var(--transition-base);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: var(--spacing-lg);
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            border-radius: var(--radius-xl);
+            padding: var(--spacing-xl);
+            margin-bottom: var(--spacing-xl);
+            box-shadow: 0 10px 30px var(--shadow-lg);
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: var(--spacing-md);
+        }
+
+        .app-title {
+            font-size: 2rem;
+            font-weight: 700;
+            color: white;
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-md);
+        }
+
+        .icon {
+            font-size: 2.5rem;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: var(--spacing-sm);
+        }
+
+        /* Buttons */
+        .btn {
+            padding: var(--spacing-sm) var(--spacing-lg);
+            border: none;
+            border-radius: var(--radius-md);
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all var(--transition-base);
+            display: inline-flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            color: white;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(102, 126, 234, 0.5);
+        }
+
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .btn-secondary:hover {
+            background: var(--border);
+        }
+
+        .icon-btn,
+        .icon-btn-small {
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: var(--radius-md);
+            padding: var(--spacing-sm);
+            cursor: pointer;
+            transition: all var(--transition-base);
+            font-size: 1.25rem;
+        }
+
+        .icon-btn:hover,
+        .icon-btn-small:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.05);
+        }
+
+        .icon-btn-small {
+            font-size: 1rem;
+            padding: var(--spacing-xs);
+        }
+
+        /* Search Section */
+        .search-section {
+            background: var(--bg-secondary);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-xl);
+            margin-bottom: var(--spacing-xl);
+            box-shadow: 0 4px 12px var(--shadow);
+        }
+
+        .search-container {
+            display: flex;
+            gap: var(--spacing-md);
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .search-input {
+            flex: 1;
+            padding: var(--spacing-md);
+            border: 2px solid var(--border);
+            border-radius: var(--radius-md);
+            font-size: 1rem;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            transition: all var(--transition-base);
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .quick-add {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--spacing-sm);
+            align-items: center;
+        }
+
+        .quick-add-label {
+            font-size: 0.875rem;
+            color: var(--text-tertiary);
+            font-weight: 500;
+        }
+
+        .chip {
+            padding: var(--spacing-xs) var(--spacing-md);
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            color: var(--text-secondary);
+        }
+
+        .chip:hover {
+            background: var(--accent-primary);
+            color: white;
+            border-color: var(--accent-primary);
+            transform: translateY(-1px);
+        }
+
+        /* Watchlist Section */
+        .watchlist-section {
+            background: var(--bg-secondary);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-xl);
+            box-shadow: 0 4px 12px var(--shadow);
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--spacing-lg);
+            flex-wrap: wrap;
+            gap: var(--spacing-md);
+        }
+
+        .section-header h2 {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .update-info {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-md);
+            color: var(--text-tertiary);
+            font-size: 0.875rem;
+        }
+
+        .watchlist-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: var(--spacing-lg);
+        }
+
+        /* Stock Card */
+        .stock-card {
+            background: linear-gradient(135deg, var(--bg-primary), var(--bg-tertiary));
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-lg);
+            position: relative;
+            overflow: hidden;
+            transition: all var(--transition-base);
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .stock-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px var(--shadow-lg);
+        }
+
+        .stock-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: var(--spacing-md);
+        }
+
+        .stock-info h3 {
+            font-size: 1.125rem;
+            font-weight: 600;
+            margin-bottom: var(--spacing-xs);
+        }
+
+        .stock-code {
+            font-size: 0.875rem;
+            color: var(--text-tertiary);
+        }
+
+        .remove-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-tertiary);
+            cursor: pointer;
+            font-size: 1.25rem;
+            padding: var(--spacing-xs);
+            transition: all var(--transition-fast);
+        }
+
+        .remove-btn:hover {
+            color: var(--danger);
+            transform: scale(1.1);
+        }
+
+        .price-section {
+            margin-bottom: var(--spacing-md);
+        }
+
+        .current-price {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: var(--spacing-xs);
+        }
+
+        .price-change {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+
+        .price-change.positive {
+            color: var(--success);
+        }
+
+        .price-change.negative {
+            color: var(--danger);
+        }
+
+        .card-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-top: var(--spacing-md);
+            border-top: 1px solid var(--border);
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+        }
+
+        .status-badge {
+            padding: var(--spacing-xs) var(--spacing-sm);
+            border-radius: var(--radius-sm);
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .status-badge.ok {
+            background: rgba(72, 187, 120, 0.1);
+            color: var(--success);
+        }
+
+        .status-badge.error {
+            background: rgba(245, 101, 101, 0.1);
+            color: var(--danger);
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: var(--spacing-2xl);
+            color: var(--text-tertiary);
+        }
+
+        .empty-state.hidden {
+            display: none;
+        }
+
+        .empty-icon {
+            font-size: 4rem;
+            margin-bottom: var(--spacing-md);
+        }
+
+        .empty-state h3 {
+            font-size: 1.25rem;
+            margin-bottom: var(--spacing-sm);
+            color: var(--text-secondary);
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.2s ease;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        .modal-content {
+            background: var(--bg-secondary);
+            border-radius: var(--radius-xl);
+            width: 90%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px var(--shadow-lg);
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: var(--spacing-xl);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .modal-header h2 {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .modal-body {
+            padding: var(--spacing-xl);
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: var(--spacing-md);
+            padding: var(--spacing-xl);
+            border-top: 1px solid var(--border);
+        }
+
+        .form-group {
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: var(--spacing-sm);
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        .input {
+            width: 100%;
+            padding: var(--spacing-md);
+            border: 2px solid var(--border);
+            border-radius: var(--radius-md);
+            font-size: 1rem;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            transition: all var(--transition-base);
+        }
+
+        .input:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .help-text {
+            display: block;
+            margin-top: var(--spacing-xs);
+            font-size: 0.875rem;
+            color: var(--text-tertiary);
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: var(--spacing-xl);
+            right: var(--spacing-xl);
+            padding: var(--spacing-md) var(--spacing-lg);
+            background: var(--bg-secondary);
+            border-radius: var(--radius-md);
+            box-shadow: 0 8px 24px var(--shadow-lg);
+            border-left: 4px solid var(--accent-primary);
+            transform: translateX(400px);
+            transition: transform var(--transition-base);
+            z-index: 2000;
+            max-width: 400px;
+        }
+
+        .toast.show {
+            transform: translateX(0);
+        }
+
+        .toast.success {
+            border-left-color: var(--success);
+        }
+
+        .toast.error {
+            border-left-color: var(--danger);
+        }
+
+        /* Loading */
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(4px);
+            z-index: 1500;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .loading-overlay.active {
+            display: flex;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: var(--spacing-md);
+            }
+
+            .header {
+                padding: var(--spacing-lg);
+            }
+
+            .app-title {
+                font-size: 1.5rem;
+            }
+
+            .icon {
+                font-size: 2rem;
+            }
+
+            .search-container {
+                flex-direction: column;
+            }
+
+            .watchlist-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .quick-add {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .toast {
+                right: var(--spacing-md);
+                left: var(--spacing-md);
+                bottom: var(--spacing-md);
+            }
+        }
+
+        @media (max-width: 480px) {
+            .current-price {
+                font-size: 1.5rem;
+            }
+
+            .section-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1 class="app-title">
+                    <span class="icon">📈</span>
+                    Yahoo Finance Tracker
+                </h1>
+                <div class="header-actions">
+                    <button id="settingsBtn" class="icon-btn" title="設定">
+                        <span>⚙️</span>
+                    </button>
+                    <button id="themeToggle" class="icon-btn" title="テーマ切り替え">
+                        <span id="themeIcon">🌙</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Search Bar -->
+        <section class="search-section">
+            <div class="search-container">
+                <input type="text" id="stockInput" class="search-input"
+                    placeholder="銘柄コードを入力 (例: 7203.T, ^DJI, USDJPY=X)" autocomplete="off">
+                <button id="addBtn" class="btn btn-primary">
+                    <span>追加</span>
+                </button>
+            </div>
+            <div class="quick-add">
+                <span class="quick-add-label">クイック追加:</span>
+                <button class="chip" data-code="7203.T">トヨタ (7203.T)</button>
+                <button class="chip" data-code="^DJI">ダウ平均 (^DJI)</button>
+                <button class="chip" data-code="^N225">日経平均 (^N225)</button>
+                <button class="chip" data-code="USDJPY=X">USD/JPY</button>
+            </div>
+        </section>
+
+        <!-- Watchlist -->
+        <section class="watchlist-section">
+            <div class="section-header">
+                <h2>ウォッチリスト</h2>
+                <div class="update-info">
+                    <span id="lastUpdate">最終更新: --:--:--</span>
+                    <button id="refreshBtn" class="icon-btn-small" title="更新">
+                        <span>🔄</span>
+                    </button>
+                </div>
+            <div id="watchlist" class="watchlist-grid">
+                <!-- Stock cards will be inserted here -->
+            </div>
+            <div id="emptyState" class="empty-state">
+                <div class="empty-icon">📊</div>
+                <h3>ウォッチリストが空です</h3>
+                <p>上の検索バーから銘柄コードを追加してください</p>
+            </div>
+        </section>
+
+        <!-- Settings Modal -->
+        <div id="settingsModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>設定</h2>
+                    <button id="closeSettings" class="icon-btn-small">
+                        <span>✕</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="apiEndpoint">APIエンドポイント</label>
+                        <input type="text" id="apiEndpoint" class="input" placeholder="http://localhost:8787">
+                        <small class="help-text">Cloudflare WorkersのURLまたはローカル開発サーバーのURL</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="refreshInterval">自動更新間隔 (秒)</label>
+                        <input type="number" id="refreshInterval" class="input" min="10" max="300" value="30">
+                        <small class="help-text">10秒から300秒の間で設定できます</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="saveSettings" class="btn btn-primary">保存</button>
+                    <button id="cancelSettings" class="btn btn-secondary">キャンセル</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast Notification -->
+        <div id="toast" class="toast"></div>
+
+        <!-- Loading Overlay -->
+        <div id="loadingOverlay" class="loading-overlay">
+            <div class="spinner"></div>
+        </div>
+    </div>
+
+    <script>
+        // App State
+        let stocks = [];
+        let appSettings = {
+            apiEndpoint: 'http://localhost:8787',
+            refreshInterval: 30
+        };
+        let refreshTimer = null;
+        let isDarkTheme = false;
+
+        // DOM Elements (will be initialized in init())
+        let stockInput, addBtn, watchlist, emptyState, themeToggle, themeIcon;
+        let settingsBtn, settingsModal, closeSettingsBtn, saveSettingsBtn, cancelSettingsBtn;
+        let apiEndpointInput, refreshIntervalInput, refreshBtn, lastUpdateSpan;
+        let toast, loadingOverlay, quickAddButtons;
+
+        // Initialize App
+        function init() {
+            console.log('Initializing app...');
+
+            // Get DOM elements
+            stockInput = document.getElementById('stockInput');
+            addBtn = document.getElementById('addBtn');
+            watchlist = document.getElementById('watchlist');
+            emptyState = document.getElementById('emptyState');
+            themeToggle = document.getElementById('themeToggle');
+            themeIcon = document.getElementById('themeIcon');
+            settingsBtn = document.getElementById('settingsBtn');
+            settingsModal = document.getElementById('settingsModal');
+            closeSettingsBtn = document.getElementById('closeSettings');
+            saveSettingsBtn = document.getElementById('saveSettings');
+            cancelSettingsBtn = document.getElementById('cancelSettings');
+            apiEndpointInput = document.getElementById('apiEndpoint');
+            refreshIntervalInput = document.getElementById('refreshInterval');
+            refreshBtn = document.getElementById('refreshBtn');
+            lastUpdateSpan = document.getElementById('lastUpdate');
+            toast = document.getElementById('toast');
+            loadingOverlay = document.getElementById('loadingOverlay');
+            quickAddButtons = document.querySelectorAll('.chip');
+
+            console.log('DOM elements loaded:', {
+                stockInput: !!stockInput,
+                themeToggle: !!themeToggle,
+                settingsBtn: !!settingsBtn
+            });
+
+            loadSettings();
+            loadStocks();
+            applyTheme();
+            setupEventListeners();
+
+            if (stocks.length > 0) {
+                fetchAllStocks();
+                startAutoRefresh();
+            }
+
+            console.log('App initialized successfully');
+        }
+
+        // Event Listeners
+        function setupEventListeners() {
+            if (!addBtn || !themeToggle || !settingsBtn) {
+                console.error('Required DOM elements not found!');
+                return;
+            }
+
+            addBtn.addEventListener('click', handleAddStock);
+            stockInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') handleAddStock();
+            });
+
+            themeToggle.addEventListener('click', toggleTheme);
+            settingsBtn.addEventListener('click', openSettings);
+            closeSettingsBtn.addEventListener('click', closeSettingsModal);
+            cancelSettingsBtn.addEventListener('click', closeSettingsModal);
+            saveSettingsBtn.addEventListener('click', handleSaveSettings);
+            refreshBtn.addEventListener('click', () => fetchAllStocks());
+
+            // Quick add buttons
+            quickAddButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const code = btn.dataset.code;
+                    addStock(code);
+                });
+            });
+
+            // Close modal on backdrop click
+            settingsModal.addEventListener('click', (e) => {
+                if (e.target === settingsModal) closeSettingsModal();
+            });
+
+            console.log('Event listeners setup complete');
+        }
+
+        // Stock Management
+        function addStock(code) {
+            const trimmedCode = code.trim().toUpperCase();
+
+            if (!trimmedCode) {
+                showToast('銘柄コードを入力してください', 'error');
+                return;
+            }
+
+            if (stocks.includes(trimmedCode)) {
+                showToast('この銘柄は既に追加されています', 'error');
+                return;
+            }
+
+            stocks.push(trimmedCode);
+            saveStocks();
+            showToast(`${trimmedCode} を追加しました`, 'success');
+            fetchAllStocks();
+
+            if (stocks.length === 1) {
+                startAutoRefresh();
+            }
+        }
+
+        function handleAddStock() {
+            const code = stockInput.value;
+            addStock(code);
+            stockInput.value = '';
+        }
+
+        function removeStock(code) {
+            stocks = stocks.filter(s => s !== code);
+            saveStocks();
+            showToast(`${code} を削除しました`, 'success');
+            renderStocks([]);
+
+            if (stocks.length === 0) {
+                stopAutoRefresh();
+                emptyState.classList.remove('hidden');
+            } else {
+                fetchAllStocks();
+            }
+        }
+
+        // Make removeStock available globally for onclick handlers
+        window.removeStock = removeStock;
+
+        // API Calls
+        async function fetchAllStocks() {
+            if (stocks.length === 0) {
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+
+            try {
+                const codesParam = stocks.join(',');
+                const url = `${appSettings.apiEndpoint}/?code=${encodeURIComponent(codesParam)}`;
+
+                const response = await fetch(url);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                renderStocks(data);
+                updateLastUpdateTime();
+
+            } catch (error) {
+                console.error('Error fetching stocks:', error);
+                showToast('データの取得に失敗しました', 'error');
+                renderStocks([]);
+            }
+        }
+
+        // Rendering
+        function renderStocks(data) {
+            watchlist.innerHTML = '';
+
+            if (stocks.length === 0) {
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+
+            stocks.forEach(code => {
+                const stockData = data.find(d => d.code === code);
+                const card = createStockCard(code, stockData);
+                watchlist.appendChild(card);
+            });
+        }
+
+        function createStockCard(code, stockData) {
+            const card = document.createElement('div');
+            card.className = 'stock-card';
+
+            if (!stockData || stockData.error) {
+                card.innerHTML = `
+            <div class="card-header">
+                <div class="stock-info">
+                    <h3>${code}</h3>
+                    <p class="stock-code">エラー</p>
+                </div>
+                <button class="remove-btn" onclick="removeStock('${code}')">✕</button>
+            </div>
+            <div class="price-section">
+                <p style="color: var(--text-tertiary);">
+                    ${stockData?.error || 'データを取得できませんでした'}
+                </p>
+            </div>
+            <div class="card-footer">
+                <span class="status-badge error">ERROR</span>
+            </div>
+        `;
+                return card;
+            }
+
+            const data = stockData.data;
+            const name = data.name || code;
+            const price = data.price || '--';
+            const priceChange = parseFloat(data.price_change) || 0;
+            const priceChangeRate = parseFloat(data.price_change_rate) || 0;
+            const updateTime = data.update_time || '--';
+            const source = data.source || 'unknown';
+            const status = data.status || 'OK';
+
+            const isPositive = priceChange >= 0;
+            const changeClass = isPositive ? 'positive' : 'negative';
+            const changeSymbol = isPositive ? '▲' : '▼';
+
+            card.innerHTML = `
+        <div class="card-header">
+            <div class="stock-info">
+                <h3>${name}</h3>
+                <p class="stock-code">${code}</p>
+            </div>
+            <button class="remove-btn" onclick="removeStock('${code}')">✕</button>
+        </div>
+        <div class="price-section">
+            <div class="current-price">${formatNumber(price)}</div>
+            <div class="price-change ${changeClass}">
+                <span>${changeSymbol} ${formatNumber(Math.abs(priceChange))}</span>
+                <span>(${formatPercentage(priceChangeRate)})</span>
+            </div>
+        </div>
+        <div class="card-footer">
+            <span class="status-badge ${status.toLowerCase()}">${source}</span>
+            <span>${updateTime}</span>
+        </div>
+    `;
+
+            return card;
+        }
+
+        // Utility Functions
+        function formatNumber(num) {
+            if (typeof num === 'string') {
+                // Remove commas and parse
+                num = parseFloat(num.replace(/,/g, ''));
+            }
+            if (isNaN(num)) return '--';
+            return num.toLocaleString('ja-JP', { maximumFractionDigits: 2 });
+        }
+
+        function formatPercentage(num) {
+            if (typeof num === 'string') {
+                num = parseFloat(num.replace(/%/g, ''));
+            }
+            if (isNaN(num)) return '--';
+            const sign = num >= 0 ? '+' : '';
+            return `${sign}${num.toFixed(2)}%`;
+        }
+
+        function updateLastUpdateTime() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('ja-JP');
+            lastUpdateSpan.textContent = `最終更新: ${timeString}`;
+        }
+
+        // Theme Management
+        function toggleTheme() {
+            console.log('Toggle theme clicked');
+            isDarkTheme = !isDarkTheme;
+            applyTheme();
+            localStorage.setItem('theme', isDarkTheme ? 'dark' : 'light');
+        }
+
+        function applyTheme() {
+            console.log('Applying theme:', isDarkTheme ? 'dark' : 'light');
+            if (isDarkTheme) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                if (themeIcon) themeIcon.textContent = '☀️';
+            } else {
+                document.documentElement.removeAttribute('data-theme');
+                if (themeIcon) themeIcon.textContent = '🌙';
+            }
+        }
+
+        // Settings Management
+        function openSettings() {
+            apiEndpointInput.value = appSettings.apiEndpoint;
+            refreshIntervalInput.value = appSettings.refreshInterval;
+            settingsModal.classList.add('active');
+        }
+
+        function closeSettingsModal() {
+            settingsModal.classList.remove('active');
+        }
+
+        function handleSaveSettings() {
+            const newEndpoint = apiEndpointInput.value.trim();
+            const newInterval = parseInt(refreshIntervalInput.value);
+
+            if (!newEndpoint) {
+                showToast('APIエンドポイントを入力してください', 'error');
+                return;
+            }
+
+            if (newInterval < 10 || newInterval > 300) {
+                showToast('更新間隔は10秒から300秒の間で設定してください', 'error');
+                return;
+            }
+
+            appSettings.apiEndpoint = newEndpoint;
+            appSettings.refreshInterval = newInterval;
+
+            saveAppSettingsToStorage();
+            closeSettingsModal();
+            showToast('設定を保存しました', 'success');
+
+            // Restart auto-refresh with new interval
+            if (stocks.length > 0) {
+                stopAutoRefresh();
+                startAutoRefresh();
+                fetchAllStocks();
+            }
+        }
+
+        // Auto-refresh
+        function startAutoRefresh() {
+            stopAutoRefresh();
+            refreshTimer = setInterval(() => {
+                fetchAllStocks();
+            }, appSettings.refreshInterval * 1000);
+        }
+
+        function stopAutoRefresh() {
+            if (refreshTimer) {
+                clearInterval(refreshTimer);
+                refreshTimer = null;
+            }
+        }
+
+        // Toast Notifications
+        function showToast(message, type = 'success') {
+            toast.textContent = message;
+            toast.className = `toast show ${type}`;
+
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        // Local Storage
+        function saveStocks() {
+            localStorage.setItem('stocks', JSON.stringify(stocks));
+        }
+
+        function loadStocks() {
+            const saved = localStorage.getItem('stocks');
+            if (saved) {
+                stocks = JSON.parse(saved);
+            }
+        }
+
+        function saveAppSettingsToStorage() {
+            localStorage.setItem('appSettings', JSON.stringify(appSettings));
+        }
+
+        function loadSettings() {
+            const saved = localStorage.getItem('appSettings');
+            if (saved) {
+                appSettings = { ...appSettings, ...JSON.parse(saved) };
+            }
+
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme) {
+                isDarkTheme = savedTheme === 'dark';
+            }
+        }
+
+        // Initialize app when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    </script>
+</body>
+
+</html>

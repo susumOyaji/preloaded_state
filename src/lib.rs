@@ -31,33 +31,49 @@ pub async fn main(req: Request, _env: Env, _ctx: Context) -> Result<Response> {
     set_panic_hook();
 
     let url = req.url()?;
+    let path = url.path();
     let query_params: std::collections::HashMap<String, String> = url.query_pairs().into_owned().collect();
 
-    let codes_str = match query_params.get("code") {
-        Some(c) => c,
-        None => return Response::error("Query parameter 'code' is required. e.g., ?code=7203.T,^DJI", 400),
-    };
+    // Check if this is an API request (has 'code' parameter)
+    if query_params.contains_key("code") {
+        // API request - handle stock data
+        let codes_str = query_params.get("code").unwrap();
+        
+        let codes: Vec<String> = codes_str
+            .split(',')
+            .filter(|s| !s.is_empty())
+            .map(|s| s.trim().to_string())
+            .collect();
 
-    let codes: Vec<String> = codes_str
-        .split(',')
-        .filter(|s| !s.is_empty())
-        .map(|s| s.trim().to_string())
-        .collect();
+        if codes.is_empty() {
+            return Response::error("Query parameter 'code' cannot be empty.", 400);
+        }
 
-    if codes.is_empty() {
-        return Response::error("Query parameter 'code' cannot be empty.", 400);
+        let keys: Option<Vec<String>> = query_params
+            .get("keys")
+            .map(|s| s.split(',').map(|k| k.trim().to_string()).collect());
+
+        let futures = codes
+            .iter()
+            .map(|code| fetch_single_code(code.clone(), keys.clone()));
+        let results = join_all(futures).await;
+
+        Response::from_json(&results)
+    } else {
+        // Static file request - serve embedded HTML (CSS/JS are inlined)
+        serve_static_file(path)
     }
+}
 
-    let keys: Option<Vec<String>> = query_params
-        .get("keys")
-        .map(|s| s.split(',').map(|k| k.trim().to_string()).collect());
-
-    let futures = codes
-        .iter()
-        .map(|code| fetch_single_code(code.clone(), keys.clone()));
-    let results = join_all(futures).await;
-
-    Response::from_json(&results)
+/// Serves the embedded HTML file (with inlined CSS/JS)
+fn serve_static_file(path: &str) -> Result<Response> {
+    match path {
+        "/" | "/index.html" => {
+            let html = include_str!("../public/index.html");
+            Response::from_html(html)
+        }
+        _ => Response::error("Not found", 404),
+    }
 }
 
 /// Fetches and processes data for a single stock code.
