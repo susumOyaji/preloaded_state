@@ -102,7 +102,7 @@ async fn fetch_single_code(code: String, keys: Option<Vec<String>>) -> CodeResul
             }
 
             match serde_json::from_str(json_str) {
-                Ok(data) => process_json_data(&code, &data, keys.as_ref()),
+                Ok(data) => process_json_data(&code, &data, &body, keys.as_ref()),
                 Err(e) => Err(worker::Error::from(format!("Failed to parse JSON: {}", e))),
             }
         } else {
@@ -121,7 +121,7 @@ async fn fetch_single_code(code: String, keys: Option<Vec<String>>) -> CodeResul
 }
 
 /// Processes the __PRELOADED_STATE__ JSON data to find financial info.
-fn process_json_data(code: &str, data: &Value, keys: Option<&Vec<String>>) -> Result<Map<String, Value>> {
+fn process_json_data(code: &str, data: &Value, body: &str, keys: Option<&Vec<String>>) -> Result<Map<String, Value>> {
     let data_sources = get_data_sources();
 
     // 1. Try predefined paths
@@ -167,6 +167,46 @@ fn process_json_data(code: &str, data: &Value, keys: Option<&Vec<String>>) -> Re
                                     }
                                 }
                             }
+
+                            // Fix for missing price/change data (e.g. when market is closed)
+                            if let Some(price_val) = results.get("price") {
+                                if price_val.as_str() == Some("---") {
+                                    // Try to use savePrice if available
+                                    if let Some(save_price) = target_obj.get("savePrice") {
+                                         let str_val = save_price.to_string().trim_matches('"').to_string();
+                                         results.insert("price".to_string(), Value::String(str_val));
+                                    }
+                                }
+                            }
+
+                            // Calculate price change if missing
+                            let price_change_missing = results.get("price_change").map_or(true, |v| v.as_str() == Some("---"));
+                            if price_change_missing {
+                                if let Some(price_str) = results.get("price").and_then(|v| v.as_str()) {
+                                    if price_str != "---" {
+                                        // Parse current price
+                                        let current_price = price_str.replace(',', "").parse::<f64>().unwrap_or(0.0);
+                                        
+                                        // Scrape previous close from DOM
+                                        let document = Html::parse_document(body);
+                                        let prev_close_selector = Selector::parse("section[class*='StocksEtfReitDataList'] ul li:first-child dd span[class*='StyledNumber__value']").unwrap();
+                                        
+                                        if let Some(prev_close_el) = document.select(&prev_close_selector).next() {
+                                            let prev_close_str = prev_close_el.text().collect::<String>().trim().to_string();
+                                            let prev_close = prev_close_str.replace(',', "").parse::<f64>().unwrap_or(0.0);
+
+                                            if prev_close > 0.0 {
+                                                let change = current_price - prev_close;
+                                                let change_rate = (change / prev_close) * 100.0;
+
+                                                results.insert("price_change".to_string(), Value::String(format!("{:.1}", change)));
+                                                results.insert("price_change_rate".to_string(), Value::String(format!("{:.2}", change_rate)));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
                             results.insert("status".to_string(), Value::String("OK".to_string()));
                             results.insert("source".to_string(), Value::String("json_predefined".to_string()));
                             return Ok(results);

@@ -271,13 +271,40 @@
         }
 
         .watchlist-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            display: flex;
+            overflow-x: auto;
             gap: var(--spacing-lg);
+            padding-bottom: var(--spacing-md);
+            /* Space for scrollbar */
+            scroll-behavior: smooth;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* Custom Scrollbar for Watchlist */
+        .watchlist-grid::-webkit-scrollbar {
+            height: 8px;
+        }
+
+        .watchlist-grid::-webkit-scrollbar-track {
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+        }
+
+        .watchlist-grid::-webkit-scrollbar-thumb {
+            background: var(--accent-primary);
+            border-radius: 4px;
+        }
+
+        .watchlist-grid::-webkit-scrollbar-thumb:hover {
+            background: var(--accent-secondary);
         }
 
         /* Stock Card */
         .stock-card {
+            flex: 0 0 calc((100% - (4 * var(--spacing-lg))) / 5);
+            /* Fit 5 items exactly */
+            min-width: 220px;
+            /* Prevent getting too small on mobile */
             background: linear-gradient(135deg, var(--bg-primary), var(--bg-tertiary));
             border: 1px solid var(--border);
             border-radius: var(--radius-lg);
@@ -682,7 +709,7 @@
                 <span class="quick-add-label">クイック追加:</span>
                 <button class="chip" data-code="7203.T">トヨタ (7203.T)</button>
                 <button class="chip" data-code="^DJI">ダウ平均 (^DJI)</button>
-                <button class="chip" data-code="^N225">日経平均 (^N225)</button>
+                <button class="chip" data-code="998407.O">日経平均 (998407.O)</button>
                 <button class="chip" data-code="USDJPY=X">USD/JPY</button>
             </div>
         </section>
@@ -697,14 +724,14 @@
                         <span>🔄</span>
                     </button>
                 </div>
-            <div id="watchlist" class="watchlist-grid">
-                <!-- Stock cards will be inserted here -->
-            </div>
-            <div id="emptyState" class="empty-state">
-                <div class="empty-icon">📊</div>
-                <h3>ウォッチリストが空です</h3>
-                <p>上の検索バーから銘柄コードを追加してください</p>
-            </div>
+                <div id="watchlist" class="watchlist-grid">
+                    <!-- Stock cards will be inserted here -->
+                </div>
+                <div id="emptyState" class="empty-state">
+                    <div class="empty-icon">📊</div>
+                    <h3>ウォッチリストが空です</h3>
+                    <p>上の検索バーから銘柄コードを追加してください</p>
+                </div>
         </section>
 
         <!-- Settings Modal -->

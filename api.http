@@ -20,4 +20,4 @@ GET http://localhost:8787/?code=7203.T,^DJI,USDJPY=X
 GET http://localhost:8787/?code=7203.T&keys=code,name,price
 
 ### Request specific keys for multiple codes
-GET http://localhost:8787/?code=9984.T,^N225&keys=code,name,price,price_change_rate
+GET http://localhost:8787/?code=9984.T,998407.O&keys=code,name,price,price_change_rate
