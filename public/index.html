@@ -270,41 +270,39 @@
             font-size: 0.875rem;
         }
 
+        /* New Layout Containers */
+        .watchlist-container {
+            display: flex;
+            flex-direction: column;
+            gap: var(--spacing-lg);
+        }
+
+        .watchlist-fixed-row {
+            display: flex;
+            gap: var(--spacing-lg);
+            justify-content: flex-start;
+        }
+
         .watchlist-grid {
             display: flex;
-            overflow-x: auto;
+            flex-wrap: wrap;
             gap: var(--spacing-lg);
-            padding-bottom: var(--spacing-md);
-            /* Space for scrollbar */
-            scroll-behavior: smooth;
-            -webkit-overflow-scrolling: touch;
         }
 
-        /* Custom Scrollbar for Watchlist */
-        .watchlist-grid::-webkit-scrollbar {
-            height: 8px;
+        /* Stock Card Sizing */
+        .watchlist-fixed-row .stock-card {
+            flex: 0 0 calc((100% - (2 * var(--spacing-lg))) / 3);
+            min-width: 0;
+            /* Allow shrinking if needed, though calc should be precise */
         }
 
-        .watchlist-grid::-webkit-scrollbar-track {
-            background: var(--bg-tertiary);
-            border-radius: 4px;
-        }
-
-        .watchlist-grid::-webkit-scrollbar-thumb {
-            background: var(--accent-primary);
-            border-radius: 4px;
-        }
-
-        .watchlist-grid::-webkit-scrollbar-thumb:hover {
-            background: var(--accent-secondary);
-        }
-
-        /* Stock Card */
-        .stock-card {
+        .watchlist-grid .stock-card {
             flex: 0 0 calc((100% - (4 * var(--spacing-lg))) / 5);
-            /* Fit 5 items exactly */
-            min-width: 220px;
-            /* Prevent getting too small on mobile */
+            min-width: 0;
+        }
+
+        /* Stock Card Styles */
+        .stock-card {
             background: linear-gradient(135deg, var(--bg-primary), var(--bg-tertiary));
             border: 1px solid var(--border);
             border-radius: var(--radius-lg);
@@ -349,10 +347,19 @@
             margin-bottom: var(--spacing-md);
         }
 
+        .stock-info {
+            flex: 1;
+            min-width: 0;
+            /* Crucial for text-overflow to work in flex items */
+        }
+
         .stock-info h3 {
             font-size: 1.125rem;
             font-weight: 600;
             margin-bottom: var(--spacing-xs);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .stock-code {
@@ -368,11 +375,41 @@
             font-size: 1.25rem;
             padding: var(--spacing-xs);
             transition: all var(--transition-fast);
+            margin-left: var(--spacing-xs);
+            flex-shrink: 0;
+            /* Prevent button from shrinking */
         }
 
         .remove-btn:hover {
             color: var(--danger);
             transform: scale(1.1);
+        }
+
+        .edit-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-tertiary);
+            cursor: pointer;
+            font-size: 1.25rem;
+            padding: var(--spacing-xs);
+            transition: all var(--transition-fast);
+            margin-left: var(--spacing-xs);
+            flex-shrink: 0;
+        }
+
+        .edit-btn:hover {
+            color: var(--accent-primary);
+            transform: scale(1.1);
+        }
+
+        .edit-btn.disabled {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .remove-btn.disabled {
+            opacity: 0;
+            pointer-events: none;
         }
 
         .price-section {
@@ -433,6 +470,7 @@
             text-align: center;
             padding: var(--spacing-2xl);
             color: var(--text-tertiary);
+            width: 100%;
         }
 
         .empty-state.hidden {
@@ -626,6 +664,17 @@
         }
 
         /* Responsive */
+        @media (max-width: 1024px) {
+            .watchlist-fixed-row .stock-card {
+                flex: 0 0 calc((100% - (2 * var(--spacing-lg))) / 3);
+            }
+
+            .watchlist-grid .stock-card {
+                flex: 0 0 calc((100% - (2 * var(--spacing-lg))) / 3);
+                /* 3 per row on tablet */
+            }
+        }
+
         @media (max-width: 768px) {
             .container {
                 padding: var(--spacing-md);
@@ -647,8 +696,14 @@
                 flex-direction: column;
             }
 
-            .watchlist-grid {
-                grid-template-columns: 1fr;
+            .watchlist-fixed-row {
+                flex-wrap: wrap;
+            }
+
+            .watchlist-fixed-row .stock-card,
+            .watchlist-grid .stock-card {
+                flex: 0 0 100%;
+                /* 1 per row on mobile */
             }
 
             .quick-add {
@@ -686,6 +741,9 @@
                     Yahoo Finance Tracker
                 </h1>
                 <div class="header-actions">
+                    <button id="addStockBtn" class="icon-btn" title="銘柄追加">
+                        <span>＋</span>
+                    </button>
                     <button id="settingsBtn" class="icon-btn" title="設定">
                         <span>⚙️</span>
                     </button>
@@ -696,23 +754,6 @@
             </div>
         </header>
 
-        <!-- Search Bar -->
-        <section class="search-section">
-            <div class="search-container">
-                <input type="text" id="stockInput" class="search-input"
-                    placeholder="銘柄コードを入力 (例: 7203.T, ^DJI, USDJPY=X)" autocomplete="off">
-                <button id="addBtn" class="btn btn-primary">
-                    <span>追加</span>
-                </button>
-            </div>
-            <div class="quick-add">
-                <span class="quick-add-label">クイック追加:</span>
-                <button class="chip" data-code="7203.T">トヨタ (7203.T)</button>
-                <button class="chip" data-code="^DJI">ダウ平均 (^DJI)</button>
-                <button class="chip" data-code="998407.O">日経平均 (998407.O)</button>
-                <button class="chip" data-code="USDJPY=X">USD/JPY</button>
-            </div>
-        </section>
 
         <!-- Watchlist -->
         <section class="watchlist-section">
@@ -724,15 +765,58 @@
                         <span>🔄</span>
                     </button>
                 </div>
-                <div id="watchlist" class="watchlist-grid">
-                    <!-- Stock cards will be inserted here -->
+            </div>
+
+            <div id="watchlistContainer" class="watchlist-container">
+                <!-- Fixed Row -->
+                <div id="watchlistFixed" class="watchlist-fixed-row">
+                    <!-- Fixed stock cards will be inserted here -->
                 </div>
-                <div id="emptyState" class="empty-state">
+
+                <!-- User Grid -->
+                <div id="watchlistGrid" class="watchlist-grid">
+                    <!-- User stock cards will be inserted here -->
+                </div>
+
+                <div id="emptyState" class="empty-state hidden">
                     <div class="empty-icon">📊</div>
                     <h3>ウォッチリストが空です</h3>
-                    <p>上の検索バーから銘柄コードを追加してください</p>
+                    <h3>ウォッチリストが空です</h3>
+                    <p>右上の＋ボタンから銘柄コードを追加してください</p>
                 </div>
+            </div>
         </section>
+
+        <!-- Add/Edit Stock Modal -->
+        <div id="addStockModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="addStockModalTitle">銘柄を追加</h2>
+                    <button id="closeAddStock" class="icon-btn-small">
+                        <span>✕</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="editModeOriginalCode">
+                    <div class="form-group">
+                        <label for="stockCodeInput">銘柄コード</label>
+                        <input type="text" id="stockCodeInput" class="input" placeholder="例: 7203.T">
+                    </div>
+                    <div class="form-group">
+                        <label for="stockQuantityInput">保有株数</label>
+                        <input type="number" id="stockQuantityInput" class="input" placeholder="0" min="0" step="1">
+                    </div>
+                    <div class="form-group">
+                        <label for="stockPriceInput">取得単価 (円)</label>
+                        <input type="number" id="stockPriceInput" class="input" placeholder="0" min="0" step="0.01">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="saveStockBtn" class="btn btn-primary">保存</button>
+                    <button id="cancelAddStock" class="btn btn-secondary">キャンセル</button>
+                </div>
+            </div>
+        </div>
 
         <!-- Settings Modal -->
         <div id="settingsModal" class="modal">
@@ -773,6 +857,7 @@
 
     <script>
         // App State
+        const FIXED_STOCKS = ['^DJI', '998407.O', 'USDJPY=X'];
         let stocks = [];
         let appSettings = {
             apiEndpoint: 'http://localhost:8787',
@@ -782,39 +867,54 @@
         let isDarkTheme = false;
 
         // DOM Elements (will be initialized in init())
-        let stockInput, addBtn, watchlist, emptyState, themeToggle, themeIcon;
+        let addStockBtn, watchlistFixed, watchlistGrid, emptyState, themeToggle, themeIcon;
         let settingsBtn, settingsModal, closeSettingsBtn, saveSettingsBtn, cancelSettingsBtn;
+        let addStockModal, closeAddStockBtn, saveStockBtn, cancelAddStockBtn;
+        let stockCodeInput, stockQuantityInput, stockPriceInput, editModeOriginalCode, addStockModalTitle;
         let apiEndpointInput, refreshIntervalInput, refreshBtn, lastUpdateSpan;
-        let toast, loadingOverlay, quickAddButtons;
+        let toast, loadingOverlay;
 
         // Initialize App
         function init() {
             console.log('Initializing app...');
 
             // Get DOM elements
-            stockInput = document.getElementById('stockInput');
-            addBtn = document.getElementById('addBtn');
-            watchlist = document.getElementById('watchlist');
+            // Get DOM elements
+            addStockBtn = document.getElementById('addStockBtn');
+            watchlistFixed = document.getElementById('watchlistFixed');
+            watchlistGrid = document.getElementById('watchlistGrid');
             emptyState = document.getElementById('emptyState');
             themeToggle = document.getElementById('themeToggle');
             themeIcon = document.getElementById('themeIcon');
+
             settingsBtn = document.getElementById('settingsBtn');
             settingsModal = document.getElementById('settingsModal');
             closeSettingsBtn = document.getElementById('closeSettings');
             saveSettingsBtn = document.getElementById('saveSettings');
             cancelSettingsBtn = document.getElementById('cancelSettings');
+
+            addStockModal = document.getElementById('addStockModal');
+            closeAddStockBtn = document.getElementById('closeAddStock');
+            saveStockBtn = document.getElementById('saveStockBtn');
+            cancelAddStockBtn = document.getElementById('cancelAddStock');
+            stockCodeInput = document.getElementById('stockCodeInput');
+            stockQuantityInput = document.getElementById('stockQuantityInput');
+            stockPriceInput = document.getElementById('stockPriceInput');
+            editModeOriginalCode = document.getElementById('editModeOriginalCode');
+            addStockModalTitle = document.getElementById('addStockModalTitle');
+
             apiEndpointInput = document.getElementById('apiEndpoint');
             refreshIntervalInput = document.getElementById('refreshInterval');
             refreshBtn = document.getElementById('refreshBtn');
             lastUpdateSpan = document.getElementById('lastUpdate');
             toast = document.getElementById('toast');
             loadingOverlay = document.getElementById('loadingOverlay');
-            quickAddButtons = document.querySelectorAll('.chip');
 
             console.log('DOM elements loaded:', {
-                stockInput: !!stockInput,
+                addStockBtn: !!addStockBtn,
                 themeToggle: !!themeToggle,
-                settingsBtn: !!settingsBtn
+                settingsBtn: !!settingsBtn,
+                addStockModal: !!addStockModal
             });
 
             loadSettings();
@@ -822,25 +922,25 @@
             applyTheme();
             setupEventListeners();
 
-            if (stocks.length > 0) {
-                fetchAllStocks();
-                startAutoRefresh();
-            }
+            // Always fetch because we have fixed stocks
+            fetchAllStocks();
+            startAutoRefresh();
 
             console.log('App initialized successfully');
         }
 
         // Event Listeners
         function setupEventListeners() {
-            if (!addBtn || !themeToggle || !settingsBtn) {
+            if (!addStockBtn || !themeToggle || !settingsBtn) {
                 console.error('Required DOM elements not found!');
                 return;
             }
 
-            addBtn.addEventListener('click', handleAddStock);
-            stockInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') handleAddStock();
-            });
+            addStockBtn.addEventListener('click', openAddStockModal);
+
+            closeAddStockBtn.addEventListener('click', closeAddStockModal);
+            cancelAddStockBtn.addEventListener('click', closeAddStockModal);
+            saveStockBtn.addEventListener('click', handleSaveStock);
 
             themeToggle.addEventListener('click', toggleTheme);
             settingsBtn.addEventListener('click', openSettings);
@@ -849,80 +949,114 @@
             saveSettingsBtn.addEventListener('click', handleSaveSettings);
             refreshBtn.addEventListener('click', () => fetchAllStocks());
 
-            // Quick add buttons
-            quickAddButtons.forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const code = btn.dataset.code;
-                    addStock(code);
-                });
-            });
-
             // Close modal on backdrop click
             settingsModal.addEventListener('click', (e) => {
                 if (e.target === settingsModal) closeSettingsModal();
+            });
+            addStockModal.addEventListener('click', (e) => {
+                if (e.target === addStockModal) closeAddStockModal();
             });
 
             console.log('Event listeners setup complete');
         }
 
         // Stock Management
-        function addStock(code) {
-            const trimmedCode = code.trim().toUpperCase();
+        function openAddStockModal() {
+            addStockModalTitle.textContent = '銘柄を追加';
+            editModeOriginalCode.value = '';
+            stockCodeInput.value = '';
+            stockCodeInput.disabled = false;
+            stockQuantityInput.value = '';
+            stockPriceInput.value = '';
+            addStockModal.classList.add('active');
+            stockCodeInput.focus();
+        }
 
-            if (!trimmedCode) {
+        function closeAddStockModal() {
+            addStockModal.classList.remove('active');
+        }
+
+        function handleSaveStock() {
+            const code = stockCodeInput.value.trim().toUpperCase();
+            const quantity = parseFloat(stockQuantityInput.value) || 0;
+            const price = parseFloat(stockPriceInput.value) || 0;
+            const originalCode = editModeOriginalCode.value;
+
+            if (!code) {
                 showToast('銘柄コードを入力してください', 'error');
                 return;
             }
 
-            if (stocks.includes(trimmedCode)) {
-                showToast('この銘柄は既に追加されています', 'error');
-                return;
+            if (originalCode) {
+                // Edit Mode
+                // Update existing stock
+                const index = stocks.findIndex(s => s.code === originalCode);
+                if (index !== -1) {
+                    stocks[index] = { code, quantity, purchasePrice: price };
+                    saveStocks();
+                    showToast(`${code} を更新しました`, 'success');
+                    fetchAllStocks();
+                }
+            } else {
+                // Add Mode
+                if (stocks.some(s => s.code === code)) {
+                    showToast('この銘柄は既に追加されています', 'error');
+                    return;
+                }
+                if (FIXED_STOCKS.includes(code)) {
+                    showToast('この銘柄は固定表示枠に既に表示されています', 'warning');
+                    return;
+                }
+
+                stocks.push({ code, quantity, purchasePrice: price });
+                saveStocks();
+                showToast(`${code} を追加しました`, 'success');
+                fetchAllStocks();
             }
 
-            stocks.push(trimmedCode);
-            saveStocks();
-            showToast(`${trimmedCode} を追加しました`, 'success');
-            fetchAllStocks();
-
-            if (stocks.length === 1) {
-                startAutoRefresh();
-            }
-        }
-
-        function handleAddStock() {
-            const code = stockInput.value;
-            addStock(code);
-            stockInput.value = '';
+            closeAddStockModal();
         }
 
         function removeStock(code) {
-            stocks = stocks.filter(s => s !== code);
+            stocks = stocks.filter(s => s.code !== code);
             saveStocks();
             showToast(`${code} を削除しました`, 'success');
-            renderStocks([]);
-
-            if (stocks.length === 0) {
-                stopAutoRefresh();
-                emptyState.classList.remove('hidden');
-            } else {
-                fetchAllStocks();
-            }
+            fetchAllStocks();
         }
 
-        // Make removeStock available globally for onclick handlers
+        function editStock(code) {
+            const stock = stocks.find(s => s.code === code);
+            if (!stock) return;
+
+            addStockModalTitle.textContent = '銘柄を編集';
+            editModeOriginalCode.value = code;
+            stockCodeInput.value = code;
+            stockCodeInput.disabled = false;
+
+            stockQuantityInput.value = stock.quantity || '';
+            stockPriceInput.value = stock.purchasePrice || '';
+
+            addStockModal.classList.add('active');
+        }
+
+        // Make functions available globally
         window.removeStock = removeStock;
+        window.editStock = editStock;
 
         // API Calls
         async function fetchAllStocks() {
-            if (stocks.length === 0) {
-                emptyState.classList.remove('hidden');
+            // Combine fixed and user stocks
+            // stocks is now array of objects. FIXED_STOCKS is array of strings.
+            const userCodes = stocks.map(s => s.code);
+            const allCodes = [...new Set([...FIXED_STOCKS, ...userCodes])];
+
+            if (allCodes.length === 0) {
+                // Should not happen due to fixed stocks, but good safety
                 return;
             }
 
-            emptyState.classList.add('hidden');
-
             try {
-                const codesParam = stocks.join(',');
+                const codesParam = allCodes.join(',');
                 const url = `${appSettings.apiEndpoint}/?code=${encodeURIComponent(codesParam)}`;
 
                 const response = await fetch(url);
@@ -938,31 +1072,47 @@
             } catch (error) {
                 console.error('Error fetching stocks:', error);
                 showToast('データの取得に失敗しました', 'error');
-                renderStocks([]);
+                // Don't clear everything on error, maybe just show error state
             }
         }
 
         // Rendering
         function renderStocks(data) {
-            watchlist.innerHTML = '';
+            watchlistFixed.innerHTML = '';
+            watchlistGrid.innerHTML = '';
 
+            // Render Fixed Row
+            FIXED_STOCKS.forEach(code => {
+                const stockData = data.find(d => d.code === code);
+                const card = createStockCard(code, stockData, true); // true = isFixed
+                watchlistFixed.appendChild(card);
+            });
+
+            // Render User Grid
             if (stocks.length === 0) {
                 emptyState.classList.remove('hidden');
-                return;
+            } else {
+                emptyState.classList.add('hidden');
+                stocks.forEach(stock => {
+                    const code = stock.code;
+                    const stockData = data.find(d => d.code === code);
+                    const card = createStockCard(code, stockData, false, stock); // Pass stock object
+                    watchlistGrid.appendChild(card);
+                });
             }
-
-            emptyState.classList.add('hidden');
-
-            stocks.forEach(code => {
-                const stockData = data.find(d => d.code === code);
-                const card = createStockCard(code, stockData);
-                watchlist.appendChild(card);
-            });
         }
 
-        function createStockCard(code, stockData) {
+        function createStockCard(code, stockData, isFixed, userStock = null) {
             const card = document.createElement('div');
             card.className = 'stock-card';
+
+            const removeBtnHtml = isFixed
+                ? `<button class="remove-btn disabled" disabled>🔒</button>`
+                : `<button class="remove-btn" onclick="removeStock('${code}')" title="削除">✕</button>`;
+
+            const editBtnHtml = isFixed
+                ? ``
+                : `<button class="edit-btn" onclick="editStock('${code}')" title="編集">✎</button>`;
 
             if (!stockData || stockData.error) {
                 card.innerHTML = `
@@ -971,7 +1121,10 @@
                     <h3>${code}</h3>
                     <p class="stock-code">エラー</p>
                 </div>
-                <button class="remove-btn" onclick="removeStock('${code}')">✕</button>
+                <div style="display: flex;">
+                    ${editBtnHtml}
+                    ${removeBtnHtml}
+                </div>
             </div>
             <div class="price-section">
                 <p style="color: var(--text-tertiary);">
@@ -987,9 +1140,9 @@
 
             const data = stockData.data;
             const name = data.name || code;
-            const price = data.price || '--';
-            const priceChange = parseFloat(data.price_change) || 0;
-            const priceChangeRate = parseFloat(data.price_change_rate) || 0;
+            const price = parseStringNumber(data.price);
+            const priceChange = parseStringNumber(data.price_change);
+            const priceChangeRate = parseStringNumber(data.price_change_rate);
             const updateTime = data.update_time || '--';
             const source = data.source || 'unknown';
             const status = data.status || 'OK';
@@ -998,13 +1151,50 @@
             const changeClass = isPositive ? 'positive' : 'negative';
             const changeSymbol = isPositive ? '▲' : '▼';
 
+            // Portfolio Calculations
+            let portfolioHtml = '';
+            if (userStock && userStock.quantity > 0) {
+                const currentPrice = price;
+                const purchasePrice = userStock.purchasePrice || 0;
+                const quantity = userStock.quantity;
+
+                const currentValue = currentPrice * quantity;
+                const totalCost = purchasePrice * quantity;
+                const gainLoss = currentValue - totalCost;
+                const gainLossPercent = totalCost > 0 ? (gainLoss / totalCost) * 100 : 0;
+
+                const glClass = gainLoss >= 0 ? 'positive' : 'negative';
+                const glSymbol = gainLoss >= 0 ? '+' : '';
+
+                portfolioHtml = `
+                    <div style="margin-top: var(--spacing-md); padding-top: var(--spacing-sm); border-top: 1px dashed var(--border);">
+                        <div style="display: flex; justify-content: space-between; font-size: 0.875rem; margin-bottom: 4px;">
+                            <span style="color: var(--text-tertiary);">保有額:</span>
+                            <span style="font-weight: 600;">¥${formatNumber(currentValue)}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 0.875rem;">
+                            <span style="color: var(--text-tertiary);">損益:</span>
+                            <span class="${glClass}" style="font-weight: 600;">
+                                ${glSymbol}¥${formatNumber(gainLoss)} (${glSymbol}${gainLossPercent.toFixed(2)}%)
+                            </span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-tertiary); margin-top: 4px;">
+                            <span>${quantity}株 @ ¥${formatNumber(purchasePrice)}</span>
+                        </div>
+                    </div>
+                `;
+            }
+
             card.innerHTML = `
         <div class="card-header">
             <div class="stock-info">
-                <h3>${name}</h3>
+                <h3 title="${name}">${name}</h3>
                 <p class="stock-code">${code}</p>
             </div>
-            <button class="remove-btn" onclick="removeStock('${code}')">✕</button>
+            <div style="display: flex;">
+                ${editBtnHtml}
+                ${removeBtnHtml}
+            </div>
         </div>
         <div class="price-section">
             <div class="current-price">${formatNumber(price)}</div>
@@ -1013,6 +1203,7 @@
                 <span>(${formatPercentage(priceChangeRate)})</span>
             </div>
         </div>
+        ${portfolioHtml}
         <div class="card-footer">
             <span class="status-badge ${status.toLowerCase()}">${source}</span>
             <span>${updateTime}</span>
@@ -1023,22 +1214,32 @@
         }
 
         // Utility Functions
-        function formatNumber(num) {
-            if (typeof num === 'string') {
-                // Remove commas and parse
-                num = parseFloat(num.replace(/,/g, ''));
+        function parseStringNumber(val) {
+            if (val === null || val === undefined || val === '') return 0;
+            if (typeof val === 'number') return val;
+            if (typeof val === 'string') {
+                // Remove commas and try to parse
+                const cleanVal = val.replace(/,/g, '');
+                const parsed = parseFloat(cleanVal);
+                return isNaN(parsed) ? 0 : parsed;
             }
-            if (isNaN(num)) return '--';
-            return num.toLocaleString('ja-JP', { maximumFractionDigits: 2 });
+            return 0;
+        }
+
+        function formatNumber(num) {
+            if (num === null || num === undefined) return '--';
+            // Ensure it's a number
+            const val = parseStringNumber(num);
+            if (isNaN(val)) return '--';
+            return val.toLocaleString('ja-JP', { maximumFractionDigits: 2 });
         }
 
         function formatPercentage(num) {
-            if (typeof num === 'string') {
-                num = parseFloat(num.replace(/%/g, ''));
-            }
-            if (isNaN(num)) return '--';
-            const sign = num >= 0 ? '+' : '';
-            return `${sign}${num.toFixed(2)}%`;
+            if (num === null || num === undefined) return '--';
+            const val = parseStringNumber(num);
+            if (isNaN(val)) return '--';
+            const sign = val >= 0 ? '+' : '';
+            return `${sign}${val.toFixed(2)}%`;
         }
 
         function updateLastUpdateTime() {
@@ -1099,11 +1300,9 @@
             showToast('設定を保存しました', 'success');
 
             // Restart auto-refresh with new interval
-            if (stocks.length > 0) {
-                stopAutoRefresh();
-                startAutoRefresh();
-                fetchAllStocks();
-            }
+            stopAutoRefresh();
+            startAutoRefresh();
+            fetchAllStocks();
         }
 
         // Auto-refresh
@@ -1139,7 +1338,19 @@
         function loadStocks() {
             const saved = localStorage.getItem('stocks');
             if (saved) {
-                stocks = JSON.parse(saved);
+                try {
+                    const parsed = JSON.parse(saved);
+                    // Migration: Convert strings to objects
+                    stocks = parsed.map(item => {
+                        if (typeof item === 'string') {
+                            return { code: item, quantity: 0, purchasePrice: 0 };
+                        }
+                        return item;
+                    });
+                } catch (e) {
+                    console.error('Error loading stocks:', e);
+                    stocks = [];
+                }
             }
         }
 
