@@ -58,7 +58,12 @@ pub async fn main(req: Request, _env: Env, _ctx: Context) -> Result<Response> {
             .map(|code| fetch_single_code(code.clone(), keys.clone()));
         let results = join_all(futures).await;
 
-        Response::from_json(&results)
+        let mut response = Response::from_json(&results)?;
+        let headers = response.headers_mut();
+        headers.set("Access-Control-Allow-Origin", "*")?;
+        headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")?;
+        headers.set("Access-Control-Allow-Headers", "Content-Type")?;
+        Ok(response)
     } else {
         // Static file request - serve embedded HTML (CSS/JS are inlined)
         serve_static_file(path)
