@@ -289,6 +289,34 @@
             gap: var(--spacing-lg);
         }
 
+        .portfolio-summary {
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-lg);
+            margin-bottom: var(--spacing-lg);
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--spacing-xl);
+            justify-content: space-around;
+            border: 1px solid var(--border);
+            animation: fadeIn 0.3s ease;
+        }
+
+        .summary-item {
+            text-align: center;
+        }
+
+        .summary-item .label {
+            font-size: 0.875rem;
+            color: var(--text-tertiary);
+            margin-bottom: var(--spacing-xs);
+        }
+
+        .summary-item .value {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
         /* Stock Card Sizing */
         .watchlist-fixed-row .stock-card {
             flex: 0 0 calc((100% - (2 * var(--spacing-lg))) / 3);
@@ -767,11 +795,16 @@
                 </div>
             </div>
 
+
+
             <div id="watchlistContainer" class="watchlist-container">
                 <!-- Fixed Row -->
                 <div id="watchlistFixed" class="watchlist-fixed-row">
                     <!-- Fixed stock cards will be inserted here -->
                 </div>
+
+                <!-- Portfolio Summary Area -->
+                <div id="portfolioSummary" class="portfolio-summary" style="display: none;"></div>
 
                 <!-- User Grid -->
                 <div id="watchlistGrid" class="watchlist-grid">
@@ -780,7 +813,6 @@
 
                 <div id="emptyState" class="empty-state hidden">
                     <div class="empty-icon">📊</div>
-                    <h3>ウォッチリストが空です</h3>
                     <h3>ウォッチリストが空です</h3>
                     <p>右上の＋ボタンから銘柄コードを追加してください</p>
                 </div>
@@ -872,7 +904,7 @@
         let addStockModal, closeAddStockBtn, saveStockBtn, cancelAddStockBtn;
         let stockCodeInput, stockQuantityInput, stockPriceInput, editModeOriginalCode, addStockModalTitle;
         let apiEndpointInput, refreshIntervalInput, refreshBtn, lastUpdateSpan;
-        let toast, loadingOverlay;
+        let toast, loadingOverlay, portfolioSummary;
 
         // Initialize App
         function init() {
@@ -909,6 +941,7 @@
             lastUpdateSpan = document.getElementById('lastUpdate');
             toast = document.getElementById('toast');
             loadingOverlay = document.getElementById('loadingOverlay');
+            portfolioSummary = document.getElementById('portfolioSummary');
 
             console.log('DOM elements loaded:', {
                 addStockBtn: !!addStockBtn,
@@ -1100,6 +1133,55 @@
                     watchlistGrid.appendChild(card);
                 });
             }
+            renderPortfolioSummary(data);
+        }
+
+        function renderPortfolioSummary(priceData) {
+            let totalValue = 0;
+            let totalCost = 0;
+            let hasPortfolioItems = false;
+
+            stocks.forEach(stock => {
+                if (stock.quantity > 0 && stock.purchasePrice > 0) {
+                    const latestData = priceData.find(d => d.code === stock.code && !d.error);
+                    if (latestData) {
+                        const currentPrice = parseStringNumber(latestData.data.price);
+                        totalValue += currentPrice * stock.quantity;
+                        totalCost += stock.purchasePrice * stock.quantity;
+                        hasPortfolioItems = true;
+                    }
+                }
+            });
+
+            if (!hasPortfolioItems) {
+                portfolioSummary.style.display = 'none';
+                return;
+            }
+
+            const totalGainLoss = totalValue - totalCost;
+            const totalGainLossPercent = totalCost > 0 ? (totalGainLoss / totalCost) * 100 : 0;
+            const glClass = totalGainLoss >= 0 ? 'positive' : 'negative';
+            const glSymbol = totalGainLoss >= 0 ? '+' : '';
+
+            portfolioSummary.innerHTML = `
+            <div class="summary-item">
+                <div class="label">評価額合計</div>
+                <div class="value">¥${formatNumber(totalValue)}</div>
+            </div>
+            <div class="summary-item">
+                <div class="label">損益合計</div>
+                <div class="value ${glClass}">
+                    ${glSymbol}¥${formatNumber(totalGainLoss)}
+                </div>
+            </div>
+            <div class="summary-item">
+                <div class="label">損益率</div>
+                <div class="value ${glClass}">
+                    ${glSymbol}${totalGainLossPercent.toFixed(2)}%
+                </div>
+            </div>
+        `;
+            portfolioSummary.style.display = 'flex';
         }
 
         function createStockCard(code, stockData, isFixed, userStock = null) {
