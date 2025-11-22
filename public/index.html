@@ -1254,9 +1254,9 @@
                             <span style="color: var(--text-tertiary);">保有額:</span>
                             <span style="font-weight: 600;">¥${formatNumber(currentValue)}</span>
                         </div>
-                        <div style="display: flex; justify-content: space-between; font-size: 0.875rem;">
-                            <span style="color: var(--text-tertiary);">損益:</span>
-                            <span class="${glClass}" style="font-weight: 600;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.875rem; overflow: hidden;">
+                            <span style="color: var(--text-tertiary); flex-shrink: 0; margin-right: 4px;">損益:</span>
+                            <span class="${glClass}" style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;" title="${glSymbol}¥${formatNumber(gainLoss)} (${glSymbol}${gainLossPercent.toFixed(2)}%)">
                                 ${glSymbol}¥${formatNumber(gainLoss)} (${glSymbol}${gainLossPercent.toFixed(2)}%)
                             </span>
                         </div>
