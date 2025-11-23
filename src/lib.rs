@@ -30,6 +30,20 @@ struct CodeResult {
 pub async fn main(req: Request, _env: Env, _ctx: Context) -> Result<Response> {
     set_panic_hook();
 
+    // Handle CORS preflight requests
+    if req.method() == Method::Options {
+        return cors_response(Response::empty()?);
+    }
+
+    let result = process_request(req).await;
+
+    match result {
+        Ok(response) => cors_response(response),
+        Err(e) => cors_response(Response::error(e.to_string(), 500)?),
+    }
+}
+
+async fn process_request(req: Request) -> Result<Response> {
     let url = req.url()?;
     let path = url.path();
     let query_params: std::collections::HashMap<String, String> = url.query_pairs().into_owned().collect();
@@ -58,16 +72,19 @@ pub async fn main(req: Request, _env: Env, _ctx: Context) -> Result<Response> {
             .map(|code| fetch_single_code(code.clone(), keys.clone()));
         let results = join_all(futures).await;
 
-        let mut response = Response::from_json(&results)?;
-        let headers = response.headers_mut();
-        headers.set("Access-Control-Allow-Origin", "*")?;
-        headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")?;
-        headers.set("Access-Control-Allow-Headers", "Content-Type")?;
-        Ok(response)
+        Response::from_json(&results)
     } else {
         // Static file request - serve embedded HTML (CSS/JS are inlined)
         serve_static_file(path)
     }
+}
+
+fn cors_response(mut response: Response) -> Result<Response> {
+    let headers = response.headers_mut();
+    headers.set("Access-Control-Allow-Origin", "*")?;
+    headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")?;
+    headers.set("Access-Control-Allow-Headers", "Content-Type")?;
+    Ok(response)
 }
 
 /// Serves the embedded HTML file (with inlined CSS/JS)
