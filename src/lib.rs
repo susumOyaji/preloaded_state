@@ -100,13 +100,18 @@ fn serve_static_file(path: &str) -> Result<Response> {
 
 /// Fetches and processes data for a single stock code.
 async fn fetch_single_code(code: String, keys: Option<Vec<String>>) -> CodeResult {
-    let url = if code.starts_with('^') || code.contains('=') || code.ends_with(".T") || code.ends_with(".O") {
+    let url_str = if code.starts_with('^') || code.contains('=') || code.ends_with(".T") || code.ends_with(".O") {
         format!("https://finance.yahoo.co.jp/quote/{}/", code)
     } else {
         format!("https://finance.yahoo.co.jp/quote/{}.T/", code)
     };
 
-    let body = match Fetch::Url(url.parse().unwrap()).send().await {
+    let url = match url_str.parse() {
+        Ok(u) => u,
+        Err(e) => return CodeResult { code, data: None, error: Some(format!("Invalid URL: {}", e)) },
+    };
+
+    let body = match Fetch::Url(url).send().await {
         Ok(mut resp) => match resp.text().await {
             Ok(text) => text,
             Err(e) => return CodeResult { code, data: None, error: Some(format!("Failed to read response text: {}", e)) },
