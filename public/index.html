@@ -756,6 +756,53 @@
                 align-items: flex-start;
             }
         }
+
+        .json-display {
+            margin-top: var(--spacing-lg);
+            padding: var(--spacing-md);
+            background-color: var(--card-bg);
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border);
+        }
+
+        .json-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .json-header h3 {
+            margin: 0;
+            font-size: 1rem;
+        }
+
+        .json-toggle-icon {
+            transition: transform 0.3s ease;
+        }
+
+        .json-content {
+            margin-top: var(--spacing-sm);
+            overflow-x: auto;
+            display: none;
+            /* Hidden by default */
+        }
+
+        .json-content.show {
+            display: block;
+        }
+
+        .json-display.open .json-toggle-icon {
+            transform: rotate(180deg);
+        }
+
+        .json-display pre {
+            margin: 0;
+            font-family: monospace;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
     </style>
 </head>
 
@@ -884,6 +931,18 @@
         <!-- Loading Overlay -->
         <div id="loadingOverlay" class="loading-overlay">
             <div class="spinner"></div>
+        </div>
+
+        <!-- JSON Display -->
+        <!-- JSON Display -->
+        <div class="json-display" id="jsonDisplayContainer">
+            <div class="json-header" onclick="toggleJsonDisplay()">
+                <h3>Raw JSON Data</h3>
+                <span class="json-toggle-icon">▼</span>
+            </div>
+            <div class="json-content" id="jsonContent">
+                <pre id="jsonOutput">Loading...</pre>
+            </div>
         </div>
     </div>
 
@@ -1100,6 +1159,13 @@
 
                 const data = await response.json();
                 renderStocks(data);
+
+                // Display Raw JSON
+                const jsonOutput = document.getElementById('jsonOutput');
+                if (jsonOutput) {
+                    jsonOutput.textContent = JSON.stringify(data, null, 2);
+                }
+
                 updateLastUpdateTime();
 
             } catch (error) {
@@ -1450,6 +1516,14 @@
             if (savedTheme) {
                 isDarkTheme = savedTheme === 'dark';
             }
+        }
+
+        function toggleJsonDisplay() {
+            const container = document.getElementById('jsonDisplayContainer');
+            const content = document.getElementById('jsonContent');
+
+            container.classList.toggle('open');
+            content.classList.toggle('show');
         }
 
         // Initialize app when DOM is ready
