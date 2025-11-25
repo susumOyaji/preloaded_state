@@ -8,7 +8,7 @@ authors = ["susumOyaji <sumitomo0210@gmail.com>"]
 crate-type = ["cdylib"]
 
 [dependencies]
-worker = "0.4.0"
+worker = "0.7"
 wasm-bindgen = "0.2.84"
 console_error_panic_hook = "0.1.7"
 

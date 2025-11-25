@@ -1,3 +1,4 @@
+// Rebuild trigger: 2025-11-25 14:57 - Fix nested grid issue
 use futures::future::join_all;
 use regex::Regex;
 use scraper::{Html, Selector};
@@ -65,7 +66,7 @@ pub async fn main(req: Request, _env: Env, _ctx: Context) -> Result<Response> {
         headers.set("Access-Control-Allow-Headers", "Content-Type")?;
         Ok(response)
     } else {
-        // Static file request - serve embedded HTML (CSS/JS are inlined)
+        // Static file request
         serve_static_file(path)
     }
 }
@@ -76,6 +77,18 @@ fn serve_static_file(path: &str) -> Result<Response> {
         "/" | "/index.html" => {
             let html = include_str!("../public/index.html");
             Response::from_html(html)
+        }
+        "/style.css" => {
+            let css = include_str!("../public/style.css");
+            let mut response = Response::ok(css)?;
+            response.headers_mut().set("Content-Type", "text/css")?;
+            Ok(response)
+        }
+        "/app.js" => {
+            let js = include_str!("../public/app.js");
+            let mut response = Response::ok(js)?;
+            response.headers_mut().set("Content-Type", "application/javascript")?;
+            Ok(response)
         }
         _ => Response::error("Not found", 404),
     }
