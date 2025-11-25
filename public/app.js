@@ -1,372 +1,520 @@
 // App State
-let stocks = [];
+const INDICES_CODES = ['^DJI', '998407.O', 'USDJPY=X'];
+let stocks = []; // Array of objects: { code: string, broker: string, quantity: number, avgPrice: number }
 let settings = {
-    apiEndpoint: 'http://localhost:8787',
-    refreshInterval: 30
+    apiEndpoint: '', // Relative path to use current origin
+    refreshInterval: 30,
+    theme: 'light'
 };
 let refreshTimer = null;
-let isDarkTheme = false;
+let editingId = null; // Track which stock is being edited (code + broker)
 
-// DOM Elements (will be initialized in init())
-let stockInput, addBtn, watchlist, emptyState, themeToggle, themeIcon;
-let settingsBtn, settingsModal, closeSettings, saveSettings, cancelSettings;
-let apiEndpointInput, refreshIntervalInput, refreshBtn, lastUpdateSpan;
-let toast, loadingOverlay, quickAddButtons;
+// DOM Elements
+let indicesContainer, watchlistContainer, totalAssetValue, totalGainLoss, emptyState;
+let addStockModal, modalTitle, stockInput, brokerInput, quantityInput, priceInput, confirmAddBtn, cancelAddBtn, addStockBtn;
+let settingsModal, apiEndpointInput, refreshIntervalInput, themeToggle, saveSettingsBtn, cancelSettingsBtn, settingsBtn;
+let refreshBtn, toast;
 
-// Initialize App
+// Initialize
 function init() {
-    console.log('Initializing app...');
-
-    // Get DOM elements
-    stockInput = document.getElementById('stockInput');
-    addBtn = document.getElementById('addBtn');
-    watchlist = document.getElementById('watchlist');
+    // DOM Selection
+    indicesContainer = document.getElementById('indicesContainer');
+    watchlistContainer = document.getElementById('watchlistContainer');
+    totalAssetValue = document.getElementById('totalAssetValue');
+    totalGainLoss = document.getElementById('totalGainLoss');
     emptyState = document.getElementById('emptyState');
-    themeToggle = document.getElementById('themeToggle');
-    themeIcon = document.getElementById('themeIcon');
-    settingsBtn = document.getElementById('settingsBtn');
+
+    addStockModal = document.getElementById('addStockModal');
+    modalTitle = document.getElementById('modalTitle');
+    stockInput = document.getElementById('stockInput');
+    brokerInput = document.getElementById('brokerInput');
+    quantityInput = document.getElementById('quantityInput');
+    priceInput = document.getElementById('priceInput');
+    confirmAddBtn = document.getElementById('confirmAddBtn');
+    cancelAddBtn = document.getElementById('cancelAddBtn');
+    addStockBtn = document.getElementById('addStockBtn');
+
     settingsModal = document.getElementById('settingsModal');
-    closeSettings = document.getElementById('closeSettings');
-    saveSettings = document.getElementById('saveSettings');
-    cancelSettings = document.getElementById('cancelSettings');
     apiEndpointInput = document.getElementById('apiEndpoint');
     refreshIntervalInput = document.getElementById('refreshInterval');
-    refreshBtn = document.getElementById('refreshBtn');
-    lastUpdateSpan = document.getElementById('lastUpdate');
-    toast = document.getElementById('toast');
-    loadingOverlay = document.getElementById('loadingOverlay');
-    quickAddButtons = document.querySelectorAll('.chip');
+    themeToggle = document.getElementById('themeToggle');
+    saveSettingsBtn = document.getElementById('saveSettings');
+    cancelSettingsBtn = document.getElementById('cancelSettings');
+    settingsBtn = document.getElementById('settingsBtn');
 
-    console.log('DOM elements loaded:', {
-        stockInput: !!stockInput,
-        themeToggle: !!themeToggle,
-        settingsBtn: !!settingsBtn
-    });
+    refreshBtn = document.getElementById('refreshBtn');
+    toast = document.getElementById('toast');
 
     loadSettings();
+
+    // Force reset apiEndpoint if it's pointing to the old worker URL to fix CORS on localhost
+    if (settings.apiEndpoint && settings.apiEndpoint.includes('workers.dev')) {
+        console.log('Resetting apiEndpoint to relative path for compatibility');
+        settings.apiEndpoint = '';
+        saveSettings();
+    }
+
     loadStocks();
     applyTheme();
     setupEventListeners();
 
-    if (stocks.length > 0) {
-        fetchAllStocks();
-        startAutoRefresh();
-    }
-
-    console.log('App initialized successfully');
+    // Initial Fetch
+    fetchData();
+    startAutoRefresh();
 }
 
-// Event Listeners
 function setupEventListeners() {
-    if (!addBtn || !themeToggle || !settingsBtn) {
-        console.error('Required DOM elements not found!');
-        return;
-    }
-
-    addBtn.addEventListener('click', handleAddStock);
-    stockInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') handleAddStock();
+    // Add Stock Modal
+    addStockBtn.addEventListener('click', () => {
+        openAddStockModal();
     });
 
-    themeToggle.addEventListener('click', toggleTheme);
-    settingsBtn.addEventListener('click', openSettings);
-    closeSettings.addEventListener('click', closeSettingsModal);
-    cancelSettings.addEventListener('click', closeSettingsModal);
-    saveSettings.addEventListener('click', handleSaveSettings);
-    refreshBtn.addEventListener('click', () => fetchAllStocks());
+    cancelAddBtn.addEventListener('click', () => addStockModal.classList.remove('active'));
 
-    // Quick add buttons
-    quickAddButtons.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const code = btn.dataset.code;
-            addStock(code);
+    confirmAddBtn.addEventListener('click', handleAddStock);
+
+    // Allow Enter key to submit in any field
+    [stockInput, brokerInput, quantityInput, priceInput].forEach(input => {
+        input.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') handleAddStock();
         });
     });
 
-    // Close modal on backdrop click
-    settingsModal.addEventListener('click', (e) => {
-        if (e.target === settingsModal) closeSettingsModal();
+    // Settings Modal
+    settingsBtn.addEventListener('click', () => {
+        apiEndpointInput.value = settings.apiEndpoint;
+        refreshIntervalInput.value = settings.refreshInterval;
+        themeToggle.checked = settings.theme === 'dark';
+        settingsModal.classList.add('active');
     });
 
-    console.log('Event listeners setup complete');
+    cancelSettingsBtn.addEventListener('click', () => settingsModal.classList.remove('active'));
+
+    saveSettingsBtn.addEventListener('click', handleSaveSettings);
+
+    // Refresh
+    refreshBtn.addEventListener('click', fetchData);
+
+    // Close modals on backdrop click
+    window.addEventListener('click', (e) => {
+        if (e.target === addStockModal) addStockModal.classList.remove('active');
+        if (e.target === settingsModal) settingsModal.classList.remove('active');
+    });
 }
 
-// Stock Management
-function addStock(code) {
-    const trimmedCode = code.trim().toUpperCase();
-
-    if (!trimmedCode) {
-        showToast('銘柄コードを入力してください', 'error');
-        return;
-    }
-
-    if (stocks.includes(trimmedCode)) {
-        showToast('この銘柄は既に追加されています', 'error');
-        return;
-    }
-
-    stocks.push(trimmedCode);
-    saveStocks();
-    showToast(`${trimmedCode} を追加しました`, 'success');
-    fetchAllStocks();
-
-    if (stocks.length === 1) {
-        startAutoRefresh();
-    }
-}
-
-function handleAddStock() {
-    const code = stockInput.value;
-    addStock(code);
+// Modal Functions
+function openAddStockModal() {
+    editingId = null;
+    modalTitle.textContent = 'Add Stock';
     stockInput.value = '';
+    brokerInput.value = '';
+    quantityInput.value = '';
+    priceInput.value = '';
+    stockInput.disabled = false;
+    brokerInput.disabled = false;
+    addStockModal.classList.add('active');
+    stockInput.focus();
 }
 
-function removeStock(code) {
-    stocks = stocks.filter(s => s !== code);
-    saveStocks();
-    showToast(`${code} を削除しました`, 'success');
-    renderStocks([]);
+function openEditStockModal(code, broker) {
+    const stock = stocks.find(s => s.code === code && s.broker === broker);
+    if (!stock) return;
 
-    if (stocks.length === 0) {
-        stopAutoRefresh();
-        emptyState.classList.remove('hidden');
-    } else {
-        fetchAllStocks();
-    }
+    editingId = `${code}|${broker}`;
+    modalTitle.textContent = 'Edit Stock';
+    stockInput.value = stock.code;
+    brokerInput.value = stock.broker || '';
+    quantityInput.value = stock.quantity;
+    priceInput.value = stock.avgPrice;
+    stockInput.disabled = false;
+    brokerInput.disabled = false;
+    addStockModal.classList.add('active');
+    stockInput.focus();
 }
 
-// Make removeStock available globally for onclick handlers
-window.removeStock = removeStock;
+// Expose to global scope for HTML onclick
+window.openEditStockModal = openEditStockModal;
 
-// API Calls
-async function fetchAllStocks() {
-    if (stocks.length === 0) {
-        emptyState.classList.remove('hidden');
+// Data Management
+async function fetchData() {
+    // Extract unique codes from stock objects
+    const stockCodes = [...new Set(stocks.map(s => s.code))];
+    const allCodes = [...INDICES_CODES, ...stockCodes];
+
+    if (allCodes.length === 0) {
+        renderIndices([]);
+        renderWatchlist([]);
+        calculatePortfolio([]);
         return;
     }
-
-    emptyState.classList.add('hidden');
 
     try {
-        const codesParam = stocks.join(',');
-        const url = `${settings.apiEndpoint}/?code=${encodeURIComponent(codesParam)}`;
-
-        const response = await fetch(url);
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+        const codesParam = allCodes.join(',');
+        let baseUrl = settings.apiEndpoint;
+        if (!baseUrl) {
+            baseUrl = window.location.origin;
+        } else if (baseUrl.endsWith('/')) {
+            baseUrl = baseUrl.slice(0, -1);
         }
 
+        const url = `${baseUrl}/?code=${encodeURIComponent(codesParam)}`;
+
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('Network response was not ok');
+
         const data = await response.json();
-        renderStocks(data);
-        updateLastUpdateTime();
+
+        // Split data
+        const indicesData = data.filter(item => {
+            const code = item.code || (item.data && item.data.code);
+            return INDICES_CODES.includes(code);
+        });
+
+        const watchlistData = data.filter(item => {
+            const code = item.code || (item.data && item.data.code);
+            return !INDICES_CODES.includes(code);
+        });
+
+        renderIndices(indicesData);
+        renderWatchlist(watchlistData);
+        calculatePortfolio(watchlistData);
 
     } catch (error) {
-        console.error('Error fetching stocks:', error);
-        showToast('データの取得に失敗しました', 'error');
-        renderStocks([]);
+        console.error('Fetch error:', error);
+        showToast('Failed to fetch data', 'error');
     }
 }
 
 // Rendering
-function renderStocks(data) {
-    watchlist.innerHTML = '';
+function renderIndices(data) {
+    indicesContainer.innerHTML = '';
+    const sortedData = INDICES_CODES.map(code =>
+        data.find(item => (item.code === code || item.data?.code === code))
+    ).filter(Boolean);
+
+    sortedData.forEach(item => {
+        indicesContainer.appendChild(createCard(item, true));
+    });
+}
+
+function renderWatchlist(data) {
+    watchlistContainer.innerHTML = '';
 
     if (stocks.length === 0) {
         emptyState.classList.remove('hidden');
         return;
     }
-
     emptyState.classList.add('hidden');
 
-    stocks.forEach(code => {
-        const stockData = data.find(d => d.code === code);
-        const card = createStockCard(code, stockData);
-        watchlist.appendChild(card);
+    // Group stocks by broker
+    const groupedByBroker = {};
+    stocks.forEach(stock => {
+        const brokerKey = stock.broker || 'Other';
+        if (!groupedByBroker[brokerKey]) {
+            groupedByBroker[brokerKey] = [];
+        }
+        const apiData = data.find(item => (item.code === stock.code || item.data?.code === stock.code));
+        groupedByBroker[brokerKey].push({ ...stock, apiData });
+    });
+
+    // Sort broker names: non-empty first, then 'Other'
+    const brokerNames = Object.keys(groupedByBroker).sort((a, b) => {
+        if (a === 'Other') return 1;
+        if (b === 'Other') return -1;
+        return a.localeCompare(b);
+    });
+
+    // Render each broker group with horizontal grid
+    brokerNames.forEach(brokerName => {
+        // Create broker header
+        const brokerHeader = document.createElement('div');
+        brokerHeader.style.cssText = 'margin-top: 24px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid var(--primary); font-size: 1.1rem; font-weight: 500; color: var(--primary);';
+        brokerHeader.textContent = brokerName;
+        watchlistContainer.appendChild(brokerHeader);
+
+        // Create horizontal grid for this broker's stocks
+        const brokerGrid = document.createElement('div');
+        brokerGrid.className = 'watchlist-grid';
+        brokerGrid.style.marginBottom = '16px';
+
+        groupedByBroker[brokerName].forEach(item => {
+            brokerGrid.appendChild(createCard(item, false));
+        });
+
+        watchlistContainer.appendChild(brokerGrid);
     });
 }
 
-function createStockCard(code, stockData) {
+function createCard(item, isIndex) {
+    const data = isIndex ? (item.data || {}) : (item.apiData?.data || {});
+    const code = isIndex ? (item.code || data.code) : item.code;
+    const broker = isIndex ? '' : (item.broker || '');
+    const name = data.name || code;
+    const priceStr = data.price || '0';
+    const changeRaw = data.price_change || '0';
+    const changeRateRaw = data.price_change_rate || '0.00';
+    const updateTime = data.update_time || '';
+
+    // Remove existing +/- signs from API data to prevent double signs
+    const change = String(changeRaw).replace(/^[+\-]/, '');
+    const changeRate = String(changeRateRaw).replace(/^[+\-]/, '');
+
+    const isPositive = parseFloat(changeRaw) >= 0;
+    const colorClass = isPositive ? 'text-success' : 'text-danger';
+    const prefix = isPositive ? '+' : '';
+
     const card = document.createElement('div');
     card.className = 'stock-card';
 
-    if (!stockData || stockData.error) {
-        card.innerHTML = `
-            <div class="card-header">
-                <div class="stock-info">
-                    <h3>${code}</h3>
-                    <p class="stock-code">エラー</p>
-                </div>
-                <button class="remove-btn" onclick="removeStock('${code}')">✕</button>
-            </div>
-            <div class="price-section">
-                <p style="color: var(--text-tertiary);">
-                    ${stockData?.error || 'データを取得できませんでした'}
-                </p>
-            </div>
-            <div class="card-footer">
-                <span class="status-badge error">ERROR</span>
+    let actionButtonsHtml = '';
+    let portfolioHtml = '';
+    let updateTimeHtml = '';
+    let brokerHtml = '';
+
+    if (!isIndex) {
+        // Escape broker name for onclick
+        const brokerEscaped = broker.replace(/'/g, "\\'");
+
+        actionButtonsHtml = `
+            <div class="stock-actions">
+                <button class="action-btn" onclick="openEditStockModal('${code}', '${brokerEscaped}')" title="Edit">
+                    <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor"><path d="M200-200h57l391-391-57-57-391 391v57Zm-80 80v-170l528-527q12-11 26.5-17t30.5-6q16 0 31 6t26 18l55 56q12 11 17.5 26t5.5 30q0 16-5.5 30.5T817-647L290-120H120Zm640-584-56-56 56 56Zm-141 85-28-29 57 57-29-28Z"/></svg>
+                </button>
+                <button class="action-btn" onclick="removeStock('${code}', '${brokerEscaped}')" title="Remove">
+                    <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor"><path d="M280-120q-33 0-56.5-23.5T200-200v-520h-40v-80h200v-40h240v40h200v80h-40v520q0 33-23.5 56.5T680-120H280Zm400-600H280v520h400v-520ZM360-280h80v-360h-80v360Zm160 0h80v-360h-80v360ZM280-720v520-520Z"/></svg>
+                </button>
             </div>
         `;
-        return card;
+
+        // Show broker name if present (only in card, not in header since we have group headers)
+        if (broker) {
+            brokerHtml = `<div style="font-size: 0.75rem; color: var(--on-surface-variant); margin-top: 2px;">${broker}</div>`;
+        }
+
+        // Calculate individual gain/loss if quantity > 0
+        if (item.quantity > 0) {
+            const currentPrice = parseFloat(priceStr.replace(/,/g, '')) || 0;
+            const gainLoss = (currentPrice - item.avgPrice) * item.quantity;
+            const gainLossPercent = item.avgPrice > 0 ? ((currentPrice - item.avgPrice) / item.avgPrice) * 100 : 0;
+
+            const glColorClass = gainLoss >= 0 ? 'text-success' : 'text-danger';
+            const glPrefix = gainLoss >= 0 ? '+' : '';
+
+            portfolioHtml = `
+                <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--outline); font-size: 0.75rem; color: var(--on-surface-variant);">
+                    <div style="display:flex; justify-content:space-between;">
+                        <span>Qty: ${item.quantity}</span>
+                        <span>Avg: ¥${item.avgPrice.toLocaleString()}</span>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; margin-top:4px;">
+                        <span style="font-weight:500;">G/L:</span>
+                        <span class="${glColorClass}" style="font-weight:500;">
+                            ${glPrefix}¥${Math.round(gainLoss).toLocaleString()} (${glPrefix}${gainLossPercent.toFixed(2)}%)
+                        </span>
+                    </div>
+                </div>
+            `;
+        }
     }
 
-    const data = stockData.data;
-    const name = data.name || code;
-    const price = data.price || '--';
-    const priceChange = parseFloat(data.price_change) || 0;
-    const priceChangeRate = parseFloat(data.price_change_rate) || 0;
-    const updateTime = data.update_time || '--';
-    const source = data.source || 'unknown';
-    const status = data.status || 'OK';
-
-    const isPositive = priceChange >= 0;
-    const changeClass = isPositive ? 'positive' : 'negative';
-    const changeSymbol = isPositive ? '▲' : '▼';
+    // Add update time display
+    if (updateTime) {
+        updateTimeHtml = `
+            <div style="margin-top: 8px; font-size: 0.7rem; color: var(--outline); text-align: right;">
+                ${updateTime}
+            </div>
+        `;
+    }
 
     card.innerHTML = `
         <div class="card-header">
-            <div class="stock-info">
-                <h3>${name}</h3>
-                <p class="stock-code">${code}</p>
+            <div>
+                <div class="stock-name" title="${name}">${name}</div>
+                <div class="stock-code">${code}</div>
+                ${brokerHtml}
             </div>
-            <button class="remove-btn" onclick="removeStock('${code}')">✕</button>
+            ${actionButtonsHtml}
         </div>
-        <div class="price-section">
-            <div class="current-price">${formatNumber(price)}</div>
-            <div class="price-change ${changeClass}">
-                <span>${changeSymbol} ${formatNumber(Math.abs(priceChange))}</span>
-                <span>(${formatPercentage(priceChangeRate)})</span>
+        <div class="card-body" style="flex-direction: column; align-items: stretch;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-end;">
+                <div class="current-price">¥${priceStr}</div>
+                <div class="change-info">
+                    <span class="${colorClass}">${prefix}${change}</span>
+                    <span class="${colorClass}">(${prefix}${changeRate}%)</span>
+                </div>
             </div>
-        </div>
-        <div class="card-footer">
-            <span class="status-badge ${status.toLowerCase()}">${source}</span>
-            <span>${updateTime}</span>
+            ${portfolioHtml}
+            ${updateTimeHtml}
         </div>
     `;
-
     return card;
 }
 
-// Utility Functions
-function formatNumber(num) {
-    if (typeof num === 'string') {
-        // Remove commas and parse
-        num = parseFloat(num.replace(/,/g, ''));
-    }
-    if (isNaN(num)) return '--';
-    return num.toLocaleString('ja-JP', { maximumFractionDigits: 2 });
+// Portfolio Calculation
+function calculatePortfolio(apiDataList) {
+    let totalAsset = 0;
+    let totalInvestment = 0;
+
+    stocks.forEach(stock => {
+        if (stock.quantity > 0) {
+            const apiItem = apiDataList.find(item => (item.code === stock.code || item.data?.code === stock.code));
+            const priceStr = apiItem?.data?.price || '0';
+            const currentPrice = parseFloat(priceStr.replace(/,/g, '')) || 0;
+
+            totalAsset += currentPrice * stock.quantity;
+            totalInvestment += stock.avgPrice * stock.quantity;
+        }
+    });
+
+    const totalGainLossVal = totalAsset - totalInvestment;
+    const totalGainLossPercent = totalInvestment > 0 ? (totalGainLossVal / totalInvestment) * 100 : 0;
+
+    const glColorClass = totalGainLossVal >= 0 ? 'text-success' : 'text-danger';
+    const glPrefix = totalGainLossVal >= 0 ? '+' : '';
+
+    totalAssetValue.textContent = `¥${Math.round(totalAsset).toLocaleString()}`;
+    totalGainLoss.innerHTML = `
+        <span class="${glColorClass}" style="display:flex; align-items:center; gap:4px;">
+            ${glPrefix}¥${Math.round(totalGainLossVal).toLocaleString()} 
+            <span style="font-size:0.875rem;">(${glPrefix}${totalGainLossPercent.toFixed(2)}%)</span>
+        </span>
+    `;
 }
 
-function formatPercentage(num) {
-    if (typeof num === 'string') {
-        num = parseFloat(num.replace(/%/g, ''));
-    }
-    if (isNaN(num)) return '--';
-    const sign = num >= 0 ? '+' : '';
-    return `${sign}${num.toFixed(2)}%`;
-}
+// Actions
+function handleAddStock() {
+    const code = stockInput.value.trim().toUpperCase();
+    const broker = brokerInput.value.trim();
+    const quantity = parseInt(quantityInput.value) || 0;
+    const avgPrice = parseFloat(priceInput.value) || 0;
 
-function updateLastUpdateTime() {
-    const now = new Date();
-    const timeString = now.toLocaleTimeString('ja-JP');
-    lastUpdateSpan.textContent = `最終更新: ${timeString}`;
-}
+    if (!code) return;
 
-// Theme Management
-function toggleTheme() {
-    console.log('Toggle theme clicked');
-    isDarkTheme = !isDarkTheme;
-    applyTheme();
-    localStorage.setItem('theme', isDarkTheme ? 'dark' : 'light');
-}
+    if (editingId) {
+        // Editing existing stock
+        const [oldCode, oldBroker] = editingId.split('|');
+        const existingIndex = stocks.findIndex(s => s.code === oldCode && s.broker === oldBroker);
 
-function applyTheme() {
-    console.log('Applying theme:', isDarkTheme ? 'dark' : 'light');
-    if (isDarkTheme) {
-        document.documentElement.setAttribute('data-theme', 'dark');
-        if (themeIcon) themeIcon.textContent = '☀️';
+        if (existingIndex !== -1) {
+            // Remove old entry
+            stocks.splice(existingIndex, 1);
+        }
+
+        // Check if new code+broker already exists
+        const newExists = stocks.findIndex(s => s.code === code && s.broker === broker);
+        if (newExists !== -1) {
+            // Update existing entry
+            stocks[newExists] = { code, broker, quantity, avgPrice };
+            showToast('Stock merged and updated');
+        } else {
+            // Add as new entry
+            stocks.push({ code, broker, quantity, avgPrice });
+            showToast('Stock updated');
+        }
     } else {
-        document.documentElement.removeAttribute('data-theme');
-        if (themeIcon) themeIcon.textContent = '🌙';
+        // Adding new stock
+        const existingIndex = stocks.findIndex(s => s.code === code && s.broker === broker);
+
+        if (existingIndex !== -1) {
+            // Update existing
+            stocks[existingIndex] = { code, broker, quantity, avgPrice };
+            showToast('Stock updated');
+        } else {
+            // Add new
+            stocks.push({ code, broker, quantity, avgPrice });
+            showToast('Stock added');
+        }
     }
+
+    saveStocks();
+    addStockModal.classList.remove('active');
+    editingId = null;
+    fetchData();
 }
 
-// Settings Management
-function openSettings() {
-    apiEndpointInput.value = settings.apiEndpoint;
-    refreshIntervalInput.value = settings.refreshInterval;
-    settingsModal.classList.add('active');
+function removeStock(code, broker) {
+    stocks = stocks.filter(s => !(s.code === code && s.broker === broker));
+    saveStocks();
+    fetchData(); // Re-render
+    showToast('Stock removed');
 }
-
-function closeSettingsModal() {
-    settingsModal.classList.remove('active');
-}
+// Expose to global scope for HTML onclick
+window.removeStock = removeStock;
 
 function handleSaveSettings() {
-    const newEndpoint = apiEndpointInput.value.trim();
-    const newInterval = parseInt(refreshIntervalInput.value);
-
-    if (!newEndpoint) {
-        showToast('APIエンドポイントを入力してください', 'error');
-        return;
-    }
-
-    if (newInterval < 10 || newInterval > 300) {
-        showToast('更新間隔は10秒から300秒の間で設定してください', 'error');
-        return;
-    }
-
-    settings.apiEndpoint = newEndpoint;
-    settings.refreshInterval = newInterval;
+    settings.apiEndpoint = apiEndpointInput.value.trim();
+    settings.refreshInterval = parseInt(refreshIntervalInput.value);
+    settings.theme = themeToggle.checked ? 'dark' : 'light';
 
     saveSettings();
-    closeSettingsModal();
-    showToast('設定を保存しました', 'success');
+    applyTheme();
+    settingsModal.classList.remove('active');
 
-    // Restart auto-refresh with new interval
-    if (stocks.length > 0) {
-        stopAutoRefresh();
-        startAutoRefresh();
-        fetchAllStocks();
-    }
+    startAutoRefresh(); // Restart timer
+    fetchData(); // Refresh data
+    showToast('Settings saved');
 }
 
-// Auto-refresh
+// Utils
+function showToast(msg, type = 'success') {
+    toast.textContent = msg;
+    toast.className = 'toast show';
+    setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
 function startAutoRefresh() {
-    stopAutoRefresh();
-    refreshTimer = setInterval(() => {
-        fetchAllStocks();
-    }, settings.refreshInterval * 1000);
+    if (refreshTimer) clearInterval(refreshTimer);
+    refreshTimer = setInterval(fetchData, settings.refreshInterval * 1000);
 }
 
-function stopAutoRefresh() {
-    if (refreshTimer) {
-        clearInterval(refreshTimer);
-        refreshTimer = null;
-    }
-}
-
-// Toast Notifications
-function showToast(message, type = 'success') {
-    toast.textContent = message;
-    toast.className = `toast show ${type}`;
-
-    setTimeout(() => {
-        toast.classList.remove('show');
-    }, 3000);
-}
-
-// Local Storage
+// Storage
 function saveStocks() {
-    localStorage.setItem('stocks', JSON.stringify(stocks));
+    localStorage.setItem('stocks_v3', JSON.stringify(stocks));
 }
 
 function loadStocks() {
-    const saved = localStorage.getItem('stocks');
-    if (saved) {
-        stocks = JSON.parse(saved);
+    // Try loading v3 format first (with broker)
+    const savedV3 = localStorage.getItem('stocks_v3');
+    if (savedV3) {
+        try {
+            stocks = JSON.parse(savedV3);
+            return;
+        } catch (e) { console.error('Error loading v3 stocks', e); }
     }
+
+    // Fallback/Migration from v2 (without broker)
+    const savedV2 = localStorage.getItem('stocks_v2');
+    if (savedV2) {
+        try {
+            const oldStocks = JSON.parse(savedV2);
+            if (Array.isArray(oldStocks) && oldStocks.length > 0) {
+                // Migrate: add broker field
+                stocks = oldStocks.map(stock => ({ ...stock, broker: stock.broker || '' }));
+                saveStocks(); // Save as v3
+                return;
+            }
+        } catch (e) { console.error('Error loading v2 stocks', e); }
+    }
+
+    // Fallback/Migration from v1 (simple array of strings)
+    const savedV1 = localStorage.getItem('stocks');
+    if (savedV1) {
+        try {
+            const oldStocks = JSON.parse(savedV1);
+            if (Array.isArray(oldStocks) && oldStocks.length > 0 && typeof oldStocks[0] === 'string') {
+                // Migrate
+                stocks = oldStocks.map(code => ({ code, broker: '', quantity: 0, avgPrice: 0 }));
+                saveStocks(); // Save as v3
+                return;
+            }
+        } catch (e) { console.error('Error loading v1 stocks', e); }
+    }
+
+    // Default if nothing found
+    stocks = [
+        { code: '7203.T', broker: '', quantity: 100, avgPrice: 2000 },
+        { code: '9984.T', broker: '', quantity: 0, avgPrice: 0 }
+    ];
 }
 
 function saveSettings() {
@@ -378,14 +526,13 @@ function loadSettings() {
     if (saved) {
         settings = { ...settings, ...JSON.parse(saved) };
     }
-
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme) {
-        isDarkTheme = savedTheme === 'dark';
-    }
 }
 
-// Initialize app when DOM is ready
+function applyTheme() {
+    document.documentElement.setAttribute('data-theme', settings.theme);
+}
+
+// Start
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
 } else {

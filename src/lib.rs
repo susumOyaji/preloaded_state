@@ -1,4 +1,4 @@
-// Rebuild trigger: 2025-11-25 14:57 - Fix nested grid issue
+// Rebuild trigger: 2025-11-25 15:10 - Complete rewrite with Portfolio, Broker, Grouping
 use futures::future::join_all;
 use regex::Regex;
 use scraper::{Html, Selector};
@@ -31,6 +31,20 @@ struct CodeResult {
 pub async fn main(req: Request, _env: Env, _ctx: Context) -> Result<Response> {
     set_panic_hook();
 
+    // Handle CORS preflight requests
+    if req.method() == Method::Options {
+        return cors_response(Response::empty()?);
+    }
+
+    let result = process_request(req).await;
+
+    match result {
+        Ok(response) => cors_response(response),
+        Err(e) => cors_response(Response::error(e.to_string(), 500)?),
+    }
+}
+
+async fn process_request(req: Request) -> Result<Response> {
     let url = req.url()?;
     let path = url.path();
     let query_params: std::collections::HashMap<String, String> = url.query_pairs().into_owned().collect();
@@ -59,16 +73,19 @@ pub async fn main(req: Request, _env: Env, _ctx: Context) -> Result<Response> {
             .map(|code| fetch_single_code(code.clone(), keys.clone()));
         let results = join_all(futures).await;
 
-        let mut response = Response::from_json(&results)?;
-        let headers = response.headers_mut();
-        headers.set("Access-Control-Allow-Origin", "*")?;
-        headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")?;
-        headers.set("Access-Control-Allow-Headers", "Content-Type")?;
-        Ok(response)
+        Response::from_json(&results)
     } else {
         // Static file request
         serve_static_file(path)
     }
+}
+
+fn cors_response(mut response: Response) -> Result<Response> {
+    let headers = response.headers_mut();
+    headers.set("Access-Control-Allow-Origin", "*")?;
+    headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")?;
+    headers.set("Access-Control-Allow-Headers", "Content-Type")?;
+    Ok(response)
 }
 
 /// Serves the embedded HTML file (with inlined CSS/JS)
@@ -96,13 +113,18 @@ fn serve_static_file(path: &str) -> Result<Response> {
 
 /// Fetches and processes data for a single stock code.
 async fn fetch_single_code(code: String, keys: Option<Vec<String>>) -> CodeResult {
-    let url = if code.starts_with('^') || code.contains('=') || code.ends_with(".T") || code.ends_with(".O") {
+    let url_str = if code.starts_with('^') || code.contains('=') || code.ends_with(".T") || code.ends_with(".O") {
         format!("https://finance.yahoo.co.jp/quote/{}/", code)
     } else {
         format!("https://finance.yahoo.co.jp/quote/{}.T/", code)
     };
 
-    let body = match Fetch::Url(url.parse().unwrap()).send().await {
+    let url = match url_str.parse() {
+        Ok(u) => u,
+        Err(e) => return CodeResult { code, data: None, error: Some(format!("Invalid URL: {}", e)) },
+    };
+
+    let body = match Fetch::Url(url).send().await {
         Ok(mut resp) => match resp.text().await {
             Ok(text) => text,
             Err(e) => return CodeResult { code, data: None, error: Some(format!("Failed to read response text: {}", e)) },
