@@ -163,17 +163,19 @@ async function fetchData() {
         if (!response.ok) throw new Error('Network response was not ok');
 
         const data = await response.json();
+        console.log('API Response:', data);
 
         // Split data
         const indicesData = data.filter(item => {
-            const code = item.code || (item.data && item.data.code);
-            return INDICES_CODES.includes(code);
+            const code = item.code;
+            return code && INDICES_CODES.includes(code);
         });
 
         const watchlistData = data.filter(item => {
-            const code = item.code || (item.data && item.data.code);
-            return !INDICES_CODES.includes(code);
+            const code = item.code;
+            return code && !INDICES_CODES.includes(code);
         });
+        console.log('Watchlist Data:', watchlistData);
 
         renderIndices(indicesData);
         renderWatchlist(watchlistData);
@@ -206,6 +208,14 @@ function renderWatchlist(data) {
     }
     emptyState.classList.add('hidden');
 
+    // Create a lookup map for API data by code
+    const apiDataMap = {};
+    data.forEach(item => {
+        if (item.code) {
+            apiDataMap[item.code] = item;
+        }
+    });
+
     // Group stocks by broker
     const groupedByBroker = {};
     stocks.forEach(stock => {
@@ -213,7 +223,7 @@ function renderWatchlist(data) {
         if (!groupedByBroker[brokerKey]) {
             groupedByBroker[brokerKey] = [];
         }
-        const apiData = data.find(item => (item.code === stock.code || item.data?.code === stock.code));
+        const apiData = apiDataMap[stock.code];
         groupedByBroker[brokerKey].push({ ...stock, apiData });
     });
 
@@ -223,9 +233,11 @@ function renderWatchlist(data) {
         if (b === 'Other') return -1;
         return a.localeCompare(b);
     });
+    console.log('groupedByBroker:', groupedByBroker);
 
     // Render each broker group with horizontal grid
     brokerNames.forEach(brokerName => {
+        console.log(`Rendering broker: ${brokerName}, stocks:`, groupedByBroker[brokerName]);
         // Create broker header
         const brokerHeader = document.createElement('div');
         brokerHeader.style.cssText = 'margin-top: 24px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid var(--primary); font-size: 1.1rem; font-weight: 500; color: var(--primary);';
@@ -238,7 +250,10 @@ function renderWatchlist(data) {
         brokerGrid.style.marginBottom = '16px';
 
         groupedByBroker[brokerName].forEach(item => {
-            brokerGrid.appendChild(createCard(item, false));
+            console.log(`Creating card for:`, item);
+            const card = createCard(item, false);
+            console.log(`Card created:`, card);
+            brokerGrid.appendChild(card);
         });
 
         watchlistContainer.appendChild(brokerGrid);
@@ -246,14 +261,26 @@ function renderWatchlist(data) {
 }
 
 function createCard(item, isIndex) {
-    const data = isIndex ? (item.data || {}) : (item.apiData?.data || {});
-    const code = isIndex ? (item.code || data.code) : item.code;
+    // Handle both index data and watchlist data
+    let code, name, priceStr, changeRaw, changeRateRaw, updateTime, data;
+    
+    if (isIndex) {
+        // Index: CodeResult object with { code, data, error }
+        code = item.code;
+        data = item.data || {};
+    } else {
+        // Watchlist: { code, broker, quantity, avgPrice, apiData }
+        code = item.code;
+        const apiData = item.apiData;
+        data = (apiData && apiData.data) || {};
+    }
+
     const broker = isIndex ? '' : (item.broker || '');
-    const name = data.name || code;
-    const priceStr = data.price || '0';
-    const changeRaw = data.price_change || '0';
-    const changeRateRaw = data.price_change_rate || '0.00';
-    const updateTime = data.update_time || '';
+    name = data.name || code;
+    priceStr = data.price || '0';
+    changeRaw = data.price_change || '0';
+    changeRateRaw = data.price_change_rate || '0.00';
+    updateTime = data.update_time || '';
 
     // Remove existing +/- signs from API data to prevent double signs
     const change = String(changeRaw).replace(/^[+\-]/, '');
@@ -352,13 +379,21 @@ function createCard(item, isIndex) {
 
 // Portfolio Calculation
 function calculatePortfolio(apiDataList) {
+    // Create a lookup map for API data by code
+    const apiDataMap = {};
+    apiDataList.forEach(item => {
+        if (item.code) {
+            apiDataMap[item.code] = item;
+        }
+    });
+
     let totalAsset = 0;
     let totalInvestment = 0;
 
     stocks.forEach(stock => {
         if (stock.quantity > 0) {
-            const apiItem = apiDataList.find(item => (item.code === stock.code || item.data?.code === stock.code));
-            const priceStr = apiItem?.data?.price || '0';
+            const apiItem = apiDataMap[stock.code];
+            const priceStr = (apiItem && apiItem.data && apiItem.data.price) || '0';
             const currentPrice = parseFloat(priceStr.replace(/,/g, '')) || 0;
 
             totalAsset += currentPrice * stock.quantity;

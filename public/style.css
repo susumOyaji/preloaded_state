@@ -4,12 +4,12 @@
     --on-primary: #ffffff;
     --primary-container: #eaddff;
     --on-primary-container: #21005d;
-    
+
     --secondary: #625b71;
     --on-secondary: #ffffff;
     --secondary-container: #e8def8;
     --on-secondary-container: #1d192b;
-    
+
     --tertiary: #7d5260;
     --on-tertiary: #ffffff;
     --tertiary-container: #ffd8e4;
@@ -20,34 +20,38 @@
     --error-container: #f9dedc;
     --on-error-container: #410e0b;
 
-    --background: #fdfcff; /* Surface */
+    --background: #fdfcff;
+    /* Surface */
     --on-background: #1c1b1f;
-    
+
     --surface: #fdfcff;
     --on-surface: #1c1b1f;
-    
+
     --surface-variant: #e7e0ec;
     --on-surface-variant: #49454f;
-    
+
     --outline: #79747e;
-    
+
     /* Custom Status Colors */
-    --success: #4caf50; /* Green */
-    --danger: #f44336;  /* Red */
-    
+    --success: #4caf50;
+    /* Green */
+    --danger: #f44336;
+    /* Red */
+
     /* Spacing */
     --spacing-xs: 4px;
     --spacing-sm: 8px;
     --spacing-md: 16px;
     --spacing-lg: 24px;
     --spacing-xl: 32px;
-    
+
     /* Border Radius */
     --radius-sm: 8px;
     --radius-md: 12px;
     --radius-lg: 16px;
-    --radius-xl: 28px; /* Material 3 standard for large containers */
-    
+    --radius-xl: 28px;
+    /* Material 3 standard for large containers */
+
     /* Elevation (Shadows) */
     --elevation-1: 0px 1px 3px 1px rgba(0, 0, 0, 0.15), 0px 1px 2px 0px rgba(0, 0, 0, 0.3);
     --elevation-2: 0px 2px 6px 2px rgba(0, 0, 0, 0.15), 0px 1px 2px 0px rgba(0, 0, 0, 0.3);
@@ -62,12 +66,12 @@
     --on-primary: #381e72;
     --primary-container: #4f378b;
     --on-primary-container: #eaddff;
-    
+
     --secondary: #ccc2dc;
     --on-secondary: #332d41;
     --secondary-container: #4a4458;
     --on-secondary-container: #e8def8;
-    
+
     --tertiary: #efb8c8;
     --on-tertiary: #492532;
     --tertiary-container: #633b48;
@@ -80,13 +84,13 @@
 
     --background: #1c1b1f;
     --on-background: #e6e1e5;
-    
+
     --surface: #1c1b1f;
     --on-surface: #e6e1e5;
-    
+
     --surface-variant: #49454f;
     --on-surface-variant: #cac4d0;
-    
+
     --outline: #938f99;
 }
 
@@ -97,7 +101,8 @@
 }
 
 body {
-    font-family: 'Roboto', 'Inter', sans-serif; /* Material Design standard */
+    font-family: 'Roboto', 'Inter', sans-serif;
+    /* Material Design standard */
     background: var(--background);
     color: var(--on-background);
     line-height: 1.5;
@@ -106,16 +111,18 @@ body {
 }
 
 .container {
-    max-width: 1200px;
+    max-width: 100%;
     margin: 0 auto;
     padding: var(--spacing-md);
 }
 
 /* Header (AppBar style) */
 .header {
-    background: var(--surface-variant); /* Inverse Primary style often uses surface variant or primary container */
+    background: var(--surface-variant);
+    /* Inverse Primary style often uses surface variant or primary container */
     color: var(--on-surface-variant);
-    border-radius: 0 0 var(--radius-lg) var(--radius-lg); /* Rounded bottom only */
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+    /* Rounded bottom only */
     padding: var(--spacing-md) var(--spacing-lg);
     margin-bottom: var(--spacing-lg);
     box-shadow: var(--elevation-2);
@@ -125,7 +132,8 @@ body {
 }
 
 .app-title {
-    font-size: 1.375rem; /* 22px */
+    font-size: 1.375rem;
+    /* 22px */
     font-weight: 400;
     display: flex;
     align-items: center;
@@ -154,12 +162,14 @@ body {
 }
 
 .icon-btn:hover {
-    background-color: rgba(var(--on-surface-variant), 0.08); /* State layer */
+    background-color: rgba(var(--on-surface-variant), 0.08);
+    /* State layer */
 }
 
 /* Section Titles */
 .section-title {
-    font-size: 1.25rem; /* 20px */
+    font-size: 1.25rem;
+    /* 20px */
     font-weight: 500;
     margin-bottom: var(--spacing-sm);
     color: var(--on-background);
@@ -167,16 +177,54 @@ body {
 
 /* Grids & Layouts */
 .indices-grid {
-    display: flex;
-    gap: var(--spacing-sm);
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--spacing-md);
     margin-bottom: var(--spacing-lg);
-    overflow-x: auto; /* Allow scrolling on small screens */
-    padding-bottom: var(--spacing-xs);
+    align-items: stretch;
+    grid-auto-rows: 1fr;
 }
 
 .indices-grid .stock-card {
-    flex: 1;
-    min-width: 200px;
+    width: 100%;
+    min-width: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Full-bleed wrapper for sections that should span the viewport */
+.full-bleed {
+    width: 100vw;
+    position: relative;
+    left: 50%;
+    right: 50%;
+    margin-left: -50vw;
+    margin-right: -50vw;
+    box-sizing: border-box;
+}
+
+.full-bleed .indices-section {
+    /* Remove internal padding so the indices grid can touch viewport edges */
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Ensure the grid itself doesn't add extra outer padding so cards reach edges */
+.indices-grid {
+    padding: 0;
+}
+
+@media (max-width: 600px) {
+    .full-bleed .indices-section {
+        padding-left: var(--spacing-md);
+        padding-right: var(--spacing-md);
+    }
+
+    .indices-grid {
+        grid-template-columns: 1fr;
+        gap: var(--spacing-sm);
+    }
 }
 
 .portfolio-section {
@@ -208,7 +256,8 @@ body {
 
 .watchlist-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); /* Responsive grid */
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    /* Responsive grid */
     gap: var(--spacing-md);
 }
 
@@ -224,8 +273,10 @@ body {
     justify-content: space-between;
     height: 100%;
     position: relative;
-    border: 1px solid var(--outline); /* Subtle border */
-    border-color: rgba(121, 116, 126, 0.2); /* Very light outline */
+    border: 1px solid var(--outline);
+    /* Subtle border */
+    border-color: rgba(121, 116, 126, 0.2);
+    /* Very light outline */
 }
 
 .stock-card:hover {
@@ -279,7 +330,8 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: flex-end;
-    margin-top: auto; /* Push to bottom */
+    margin-top: auto;
+    /* Push to bottom */
 }
 
 .price-info {
@@ -302,9 +354,17 @@ body {
 }
 
 /* Text Colors for Gain/Loss */
-.text-success { color: var(--success); }
-.text-danger { color: var(--danger); }
-.text-neutral { color: var(--outline); }
+.text-success {
+    color: var(--success);
+}
+
+.text-danger {
+    color: var(--danger);
+}
+
+.text-neutral {
+    color: var(--outline);
+}
 
 /* Modal */
 .modal {
@@ -362,7 +422,8 @@ body {
 
 .btn {
     padding: 10px 24px;
-    border-radius: 100px; /* Stadium shape */
+    border-radius: 100px;
+    /* Stadium shape */
     border: none;
     font-weight: 500;
     cursor: pointer;
@@ -394,7 +455,8 @@ body {
     left: 50%;
     transform: translateX(-50%) translateY(100px);
     background: var(--on-surface);
-    color: var(--surface); /* Inverse colors for toast */
+    color: var(--surface);
+    /* Inverse colors for toast */
     padding: 14px 24px;
     border-radius: 4px;
     box-shadow: var(--elevation-2);
@@ -411,10 +473,11 @@ body {
 /* Responsive */
 @media (max-width: 600px) {
     .indices-grid {
-        flex-direction: column;
+        grid-template-columns: 1fr;
     }
-    
+
     .watchlist-grid {
-        grid-template-columns: 1fr; /* Single column on mobile */
+        grid-template-columns: 1fr;
+        /* Single column on mobile */
     }
 }
