@@ -1,14 +1,29 @@
-// Rebuild trigger: 2025-11-25 15:10 - Complete rewrite with Portfolio, Broker, Grouping
+// Rebuild trigger: 2025-12-02 10:15 - Optimization and Error Handling
 use futures::future::join_all;
+use lazy_static::lazy_static;
 use regex::Regex;
 use scraper::{Html, Selector};
-use serde::{Serialize};
+use serde::Serialize;
 use serde_json::{Map, Value};
 use worker::*;
 
 // Set up a panic hook to log errors to the console
 fn set_panic_hook() {
     console_error_panic_hook::set_once();
+}
+
+lazy_static! {
+    // Compile regex once
+    static ref PRELOADED_STATE_REGEX: Regex = Regex::new(r"(?s)window\.__PRELOADED_STATE__\s*=\s*(.*?)</script>").expect("Failed to compile regex");
+    
+    // Compile selectors once
+    static ref PREV_CLOSE_SELECTOR: Selector = Selector::parse("section[class*='StocksEtfReitDataList'] ul li:first-child dd span[class*='StyledNumber__value']").expect("Failed to compile selector");
+    static ref NAME_SELECTOR: Selector = Selector::parse("h1").expect("Failed to compile selector");
+    static ref PRICE_SELECTOR: Selector = Selector::parse("div[class*='_CommonPriceBoard__priceBlock'] span[class*='_StyledNumber__value']").expect("Failed to compile selector");
+    static ref CHANGE_SELECTOR: Selector = Selector::parse("span[class*='_PriceChangeLabel__primary'] span[class*='_StyledNumber__value']").expect("Failed to compile selector");
+    static ref CHANGE_RATE_SELECTOR: Selector = Selector::parse("span[class*='_PriceChangeLabel__secondary'] span[class*='_StyledNumber__value']").expect("Failed to compile selector");
+    static ref TIME_SELECTOR_1: Selector = Selector::parse("li[class*='_CommonPriceBoard__time'] time").expect("Failed to compile selector");
+    static ref TIME_SELECTOR_2: Selector = Selector::parse("span[class*='_Time']").expect("Failed to compile selector");
 }
 
 /// Defines a known location for financial data within the __PRELOADED_STATE__ JSON.
@@ -58,6 +73,8 @@ async fn process_request(req: Request) -> Result<Response> {
             .split(',')
             .filter(|s| !s.is_empty())
             .map(|s| s.trim().to_string())
+            // Limit the number of codes to prevent abuse/DoS
+            .take(20) 
             .collect();
 
         if codes.is_empty() {
@@ -113,6 +130,11 @@ fn serve_static_file(path: &str) -> Result<Response> {
 
 /// Fetches and processes data for a single stock code.
 async fn fetch_single_code(code: String, keys: Option<Vec<String>>) -> CodeResult {
+    // Basic input validation to prevent weird requests
+    if code.len() > 20 || code.contains('/') || code.contains('\\') {
+         return CodeResult { code, data: None, error: Some("Invalid code format".to_string()) };
+    }
+
     let url_str = if code.starts_with('^') || code.contains('=') || code.ends_with(".T") || code.ends_with(".O") {
         format!("https://finance.yahoo.co.jp/quote/{}/", code)
     } else {
@@ -132,9 +154,8 @@ async fn fetch_single_code(code: String, keys: Option<Vec<String>>) -> CodeResul
         Err(e) => return CodeResult { code, data: None, error: Some(format!("Failed to fetch URL: {}", e)) },
     };
 
-    let re = Regex::new(r"(?s)window\.__PRELOADED_STATE__\s*=\s*(.*?)</script>").unwrap();
-
-    let result_data: Result<Map<String, Value>> = if let Some(caps) = re.captures(&body) {
+    // Use lazy_static regex
+    let result_data: Result<Map<String, Value>> = if let Some(caps) = PRELOADED_STATE_REGEX.captures(&body) {
         if let Some(json_match) = caps.get(1) {
             let mut json_str = json_match.as_str().trim();
             if json_str.ends_with(';') {
@@ -143,14 +164,16 @@ async fn fetch_single_code(code: String, keys: Option<Vec<String>>) -> CodeResul
 
             match serde_json::from_str(json_str) {
                 Ok(data) => process_json_data(&code, &data, &body, keys.as_ref()),
-                Err(e) => Err(worker::Error::from(format!("Failed to parse JSON: {}", e))),
+                Err(e) => {
+                    // JSON parse failed, log it but fallback to DOM
+                    console_log!("JSON parse error for {}: {}", code, e);
+                    process_dom_data(&code, &body, keys.as_ref())
+                },
             }
         } else {
-            // JSON not found, fallback to DOM
             process_dom_data(&code, &body, keys.as_ref())
         }
     } else {
-        // __PRELOADED_STATE__ script not found, fallback to DOM
         process_dom_data(&code, &body, keys.as_ref())
     };
 
@@ -168,13 +191,10 @@ fn process_json_data(code: &str, data: &Value, body: &str, keys: Option<&Vec<Str
     for source in &data_sources {
         if let Some(value_at_path) = find_value_at_path(data, source.path) {
             let objects_to_search: Vec<&Map<String, Value>> = if let Some(arr) = value_at_path.as_array() {
-                // If the path leads to an array, collect all objects in that array
                 arr.iter().filter_map(|v| v.as_object()).collect()
             } else if let Some(obj) = value_at_path.as_object() {
-                // If it's a single object, treat it as a list with one item
                 vec![obj]
             } else {
-                // Not an array or an object, so we can't search it
                 vec![]
             };
 
@@ -190,11 +210,9 @@ fn process_json_data(code: &str, data: &Value, body: &str, keys: Option<&Vec<Str
                         if found_code.trim() == code_to_compare {
                             let mut results = Map::new();
                             if keys.is_some() {
-                                // `keys` is present, return all data
                                 results = target_obj.clone();
                                 results.insert("code".to_string(), Value::String(code.to_string()));
                             } else {
-                                // `keys` is absent, return minimal data
                                 let minimal_keys = vec!["code".to_string(), "name".to_string(), "price".to_string(), "price_change".to_string(), "price_change_rate".to_string(), "update_time".to_string()];
                                 for key in &minimal_keys {
                                     if let Some(json_key) = source.mappings.get(key.as_str()) {
@@ -208,10 +226,9 @@ fn process_json_data(code: &str, data: &Value, body: &str, keys: Option<&Vec<Str
                                 }
                             }
 
-                            // Fix for missing price/change data (e.g. when market is closed)
+                            // Fix for missing price/change data
                             if let Some(price_val) = results.get("price") {
                                 if price_val.as_str() == Some("---") {
-                                    // Try to use savePrice if available
                                     if let Some(save_price) = target_obj.get("savePrice") {
                                          let str_val = save_price.to_string().trim_matches('"').to_string();
                                          results.insert("price".to_string(), Value::String(str_val));
@@ -224,14 +241,12 @@ fn process_json_data(code: &str, data: &Value, body: &str, keys: Option<&Vec<Str
                             if price_change_missing {
                                 if let Some(price_str) = results.get("price").and_then(|v| v.as_str()) {
                                     if price_str != "---" {
-                                        // Parse current price
                                         let current_price = price_str.replace(',', "").parse::<f64>().unwrap_or(0.0);
                                         
-                                        // Scrape previous close from DOM
+                                        // Scrape previous close from DOM using lazy_static selector
                                         let document = Html::parse_document(body);
-                                        let prev_close_selector = Selector::parse("section[class*='StocksEtfReitDataList'] ul li:first-child dd span[class*='StyledNumber__value']").unwrap();
                                         
-                                        if let Some(prev_close_el) = document.select(&prev_close_selector).next() {
+                                        if let Some(prev_close_el) = document.select(&PREV_CLOSE_SELECTOR).next() {
                                             let prev_close_str = prev_close_el.text().collect::<String>().trim().to_string();
                                             let prev_close = prev_close_str.replace(',', "").parse::<f64>().unwrap_or(0.0);
 
@@ -257,7 +272,9 @@ fn process_json_data(code: &str, data: &Value, body: &str, keys: Option<&Vec<Str
         }
     }
 
-    // 2. Fallback to generic key search
+    // 2. Fallback to generic key search (Optimized: Limit depth or skip if too large)
+    // For now, we'll keep it but be aware it's heavy. 
+    // In a production environment, we might want to disable this or limit recursion depth.
     let fallback_keys_to_find = vec!["code".to_string()];
     let mut found_paths = Vec::new();
     find_object_paths(data, &fallback_keys_to_find, &mut Vec::new(), &mut found_paths);
@@ -281,11 +298,9 @@ fn process_json_data(code: &str, data: &Value, body: &str, keys: Option<&Vec<Str
                 if found_code.trim() == code_to_compare {
                     let mut results = Map::new();
                     if keys.is_some() {
-                        // `keys` is present, return all data
                         results = obj_map.clone();
                         results.insert("code".to_string(), Value::String(code.to_string()));
                     } else {
-                        // `keys` is absent, return minimal data
                         let minimal_keys = vec!["code".to_string(), "name".to_string(), "price".to_string(), "price_change".to_string(), "price_change_rate".to_string(), "update_time".to_string()];
                         for key in &minimal_keys {
                             if let Some(json_key) = fallback_mappings.get(key.as_str()) {
@@ -314,26 +329,9 @@ fn process_dom_data(code: &str, body: &str, keys: Option<&Vec<String>>) -> Resul
     let document = Html::parse_document(body);
     let mut results = Map::new();
 
-    // Create a map of known keys to their selectors
-    let mut selector_map = std::collections::HashMap::new();
-    selector_map.insert("name", "h1");
-    selector_map.insert("price", "div[class*='_CommonPriceBoard__priceBlock'] span[class*='_StyledNumber__value']");
-    selector_map.insert("price_change", "span[class*='_PriceChangeLabel__primary'] span[class*='_StyledNumber__value']");
-    selector_map.insert("price_change_rate", "span[class*='_PriceChangeLabel__secondary'] span[class*='_StyledNumber__value']");
-    selector_map.insert("update_time", "li[class*='_CommonPriceBoard__time'] time, span[class*='_Time']");
-
-    let keys_to_process = if keys.is_some() {
-        // `keys` is present, process all known fields
-        vec![
-            "code".to_string(),
-            "name".to_string(),
-            "price".to_string(),
-            "price_change".to_string(),
-            "price_change_rate".to_string(),
-            "update_time".to_string(),
-        ]
+    let keys_to_process = if let Some(k) = keys {
+        k.clone()
     } else {
-        // `keys` is absent, process minimal fields
         vec![
             "code".to_string(),
             "name".to_string(),
@@ -347,21 +345,26 @@ fn process_dom_data(code: &str, body: &str, keys: Option<&Vec<String>>) -> Resul
     for key in &keys_to_process {
         let value = match key.as_str() {
             "code" => Some(code.to_string()),
-            _ => {
-                if let Some(selector_str) = selector_map.get(key.as_str()) {
-                    let selector = Selector::parse(selector_str).unwrap();
-                    document.select(&selector).next().map(|el| el.text().collect::<String>().trim().to_string())
+            "name" => document.select(&NAME_SELECTOR).next().map(|el| el.text().collect::<String>().trim().to_string()),
+            "price" => document.select(&PRICE_SELECTOR).next().map(|el| el.text().collect::<String>().trim().to_string()),
+            "price_change" => document.select(&CHANGE_SELECTOR).next().map(|el| el.text().collect::<String>().trim().to_string()),
+            "price_change_rate" => document.select(&CHANGE_RATE_SELECTOR).next().map(|el| el.text().collect::<String>().trim().to_string()),
+            "update_time" => {
+                if let Some(el) = document.select(&TIME_SELECTOR_1).next() {
+                    Some(el.text().collect::<String>().trim().to_string())
                 } else {
-                    None
+                    document.select(&TIME_SELECTOR_2).next().map(|el| el.text().collect::<String>().trim().to_string())
                 }
-            }
+            },
+            _ => None
         };
+
         if let Some(val) = value {
             results.insert(key.clone(), Value::String(val));
         }
     }
     
-    // Ensure essential keys are present if requested, or if no keys were requested (defaults used)
+    // Ensure essential keys are present
     if keys_to_process.contains(&"name".to_string()) && !results.contains_key("name") {
          return Err(worker::Error::from("Failed to scrape essential data (name) from DOM."));
     }
@@ -436,6 +439,8 @@ fn find_object_paths<'a>(
     current_path: &mut Vec<&'a str>,
     found_paths: &mut Vec<Vec<&'a str>>,
 ) {
+    // Safety check: limit recursion depth or path length if needed, 
+    // but for now relying on worker timeout.
     if let Value::Object(map) = value {
         if keys_to_find.iter().all(|key| map.contains_key(key)) {
             found_paths.push(current_path.clone());

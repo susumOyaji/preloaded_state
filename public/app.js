@@ -260,10 +260,20 @@ function renderWatchlist(data) {
     });
 }
 
+function escapeHtml(text) {
+    if (!text) return text;
+    return String(text)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
 function createCard(item, isIndex) {
     // Handle both index data and watchlist data
     let code, name, priceStr, changeRaw, changeRateRaw, updateTime, data;
-    
+
     if (isIndex) {
         // Index: CodeResult object with { code, data, error }
         code = item.code;
@@ -298,24 +308,29 @@ function createCard(item, isIndex) {
     let updateTimeHtml = '';
     let brokerHtml = '';
 
+    // Sanitize display values
+    const safeName = escapeHtml(name);
+    const safeCode = escapeHtml(code);
+    const safeBroker = escapeHtml(broker);
+
     if (!isIndex) {
-        // Escape broker name for onclick
+        // Escape broker name for onclick (JS string escape)
         const brokerEscaped = broker.replace(/'/g, "\\'");
 
         actionButtonsHtml = `
             <div class="stock-actions">
-                <button class="action-btn" onclick="openEditStockModal('${code}', '${brokerEscaped}')" title="Edit">
+                <button class="action-btn" onclick="openEditStockModal('${safeCode}', '${brokerEscaped}')" title="Edit">
                     <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor"><path d="M200-200h57l391-391-57-57-391 391v57Zm-80 80v-170l528-527q12-11 26.5-17t30.5-6q16 0 31 6t26 18l55 56q12 11 17.5 26t5.5 30q0 16-5.5 30.5T817-647L290-120H120Zm640-584-56-56 56 56Zm-141 85-28-29 57 57-29-28Z"/></svg>
                 </button>
-                <button class="action-btn" onclick="removeStock('${code}', '${brokerEscaped}')" title="Remove">
+                <button class="action-btn" onclick="removeStock('${safeCode}', '${brokerEscaped}')" title="Remove">
                     <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor"><path d="M280-120q-33 0-56.5-23.5T200-200v-520h-40v-80h200v-40h240v40h200v80h-40v520q0 33-23.5 56.5T680-120H280Zm400-600H280v520h400v-520ZM360-280h80v-360h-80v360Zm160 0h80v-360h-80v360ZM280-720v520-520Z"/></svg>
                 </button>
             </div>
         `;
 
-        // Show broker name if present (only in card, not in header since we have group headers)
+        // Show broker name if present
         if (broker) {
-            brokerHtml = `<div style="font-size: 0.75rem; color: var(--on-surface-variant); margin-top: 2px;">${broker}</div>`;
+            brokerHtml = `<div style="font-size: 0.75rem; color: var(--on-surface-variant); margin-top: 2px;">${safeBroker}</div>`;
         }
 
         // Calculate individual gain/loss if quantity > 0
@@ -348,7 +363,7 @@ function createCard(item, isIndex) {
     if (updateTime) {
         updateTimeHtml = `
             <div style="margin-top: 8px; font-size: 0.7rem; color: var(--outline); text-align: right;">
-                ${updateTime}
+                ${escapeHtml(updateTime)}
             </div>
         `;
     }
@@ -356,8 +371,8 @@ function createCard(item, isIndex) {
     card.innerHTML = `
         <div class="card-header">
             <div>
-                <div class="stock-name" title="${name}">${name}</div>
-                <div class="stock-code">${code}</div>
+                <div class="stock-name" title="${safeName}">${safeName}</div>
+                <div class="stock-code">${safeCode}</div>
                 ${brokerHtml}
             </div>
             ${actionButtonsHtml}
