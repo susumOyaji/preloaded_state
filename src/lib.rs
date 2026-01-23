@@ -12,18 +12,27 @@ fn set_panic_hook() {
     console_error_panic_hook::set_once();
 }
 
+// Define selector strings as constants so we can return them in the API response
+const PREV_CLOSE_SEL_STR: &str = "section[class*='StocksEtfReitDataList'] ul li:first-child dd span[class*='StyledNumber__value']";
+const NAME_SEL_STR: &str = "h1";
+const PRICE_SEL_STR: &str = "div[class*='_CommonPriceBoard__priceBlock'] span[class*='_StyledNumber__value']";
+const CHANGE_SEL_STR: &str = "span[class*='_PriceChangeLabel__primary'] span[class*='_StyledNumber__value']";
+const CHANGE_RATE_SEL_STR: &str = "span[class*='_PriceChangeLabel__secondary'] span[class*='_StyledNumber__value']";
+const TIME_SEL_STR_1: &str = "li[class*='_CommonPriceBoard__time'] time";
+const TIME_SEL_STR_2: &str = "span[class*='_Time']";
+
 lazy_static! {
     // Compile regex once
     static ref PRELOADED_STATE_REGEX: Regex = Regex::new(r"(?s)window\.__PRELOADED_STATE__\s*=\s*(.*?)</script>").expect("Failed to compile regex");
     
-    // Compile selectors once
-    static ref PREV_CLOSE_SELECTOR: Selector = Selector::parse("section[class*='StocksEtfReitDataList'] ul li:first-child dd span[class*='StyledNumber__value']").expect("Failed to compile selector");
-    static ref NAME_SELECTOR: Selector = Selector::parse("h1").expect("Failed to compile selector");
-    static ref PRICE_SELECTOR: Selector = Selector::parse("div[class*='_CommonPriceBoard__priceBlock'] span[class*='_StyledNumber__value']").expect("Failed to compile selector");
-    static ref CHANGE_SELECTOR: Selector = Selector::parse("span[class*='_PriceChangeLabel__primary'] span[class*='_StyledNumber__value']").expect("Failed to compile selector");
-    static ref CHANGE_RATE_SELECTOR: Selector = Selector::parse("span[class*='_PriceChangeLabel__secondary'] span[class*='_StyledNumber__value']").expect("Failed to compile selector");
-    static ref TIME_SELECTOR_1: Selector = Selector::parse("li[class*='_CommonPriceBoard__time'] time").expect("Failed to compile selector");
-    static ref TIME_SELECTOR_2: Selector = Selector::parse("span[class*='_Time']").expect("Failed to compile selector");
+    // Compile selectors using the constants
+    static ref PREV_CLOSE_SELECTOR: Selector = Selector::parse(PREV_CLOSE_SEL_STR).expect("Failed to compile selector");
+    static ref NAME_SELECTOR: Selector = Selector::parse(NAME_SEL_STR).expect("Failed to compile selector");
+    static ref PRICE_SELECTOR: Selector = Selector::parse(PRICE_SEL_STR).expect("Failed to compile selector");
+    static ref CHANGE_SELECTOR: Selector = Selector::parse(CHANGE_SEL_STR).expect("Failed to compile selector");
+    static ref CHANGE_RATE_SELECTOR: Selector = Selector::parse(CHANGE_RATE_SEL_STR).expect("Failed to compile selector");
+    static ref TIME_SELECTOR_1: Selector = Selector::parse(TIME_SEL_STR_1).expect("Failed to compile selector");
+    static ref TIME_SELECTOR_2: Selector = Selector::parse(TIME_SEL_STR_2).expect("Failed to compile selector");
 }
 
 /// Defines a known location for financial data within the __PRELOADED_STATE__ JSON.
@@ -237,7 +246,7 @@ fn process_json_data(code: &str, data: &Value, body: &str, keys: Option<&Vec<Str
                             }
 
                             // Calculate price change if missing
-                            let price_change_missing = results.get("price_change").map_or(true, |v| v.as_str() == Some("---"));
+                            let price_change_missing = results.get("price_change").is_none_or(|v| v.as_str() == Some("---"));
                             if price_change_missing {
                                 if let Some(price_str) = results.get("price").and_then(|v| v.as_str()) {
                                     if price_str != "---" {
@@ -328,6 +337,7 @@ fn process_json_data(code: &str, data: &Value, body: &str, keys: Option<&Vec<Str
 fn process_dom_data(code: &str, body: &str, keys: Option<&Vec<String>>) -> Result<Map<String, Value>> {
     let document = Html::parse_document(body);
     let mut results = Map::new();
+    let mut selector_info = Map::new();
 
     let keys_to_process = if let Some(k) = keys {
         k.clone()
@@ -343,27 +353,53 @@ fn process_dom_data(code: &str, body: &str, keys: Option<&Vec<String>>) -> Resul
     };
 
     for key in &keys_to_process {
-        let value = match key.as_str() {
-            "code" => Some(code.to_string()),
-            "name" => document.select(&NAME_SELECTOR).next().map(|el| el.text().collect::<String>().trim().to_string()),
-            "price" => document.select(&PRICE_SELECTOR).next().map(|el| el.text().collect::<String>().trim().to_string()),
-            "price_change" => document.select(&CHANGE_SELECTOR).next().map(|el| el.text().collect::<String>().trim().to_string()),
-            "price_change_rate" => document.select(&CHANGE_RATE_SELECTOR).next().map(|el| el.text().collect::<String>().trim().to_string()),
+        let (value, selector_used) = match key.as_str() {
+            "code" => (Some(code.to_string()), None),
+            "name" => (
+                document.select(&NAME_SELECTOR).next().map(|el| el.text().collect::<String>().trim().to_string()),
+                Some(NAME_SEL_STR)
+            ),
+            "price" => (
+                document.select(&PRICE_SELECTOR).next().map(|el| el.text().collect::<String>().trim().to_string()),
+                Some(PRICE_SEL_STR)
+            ),
+            "price_change" => (
+                document.select(&CHANGE_SELECTOR).next().map(|el| el.text().collect::<String>().trim().to_string()),
+                Some(CHANGE_SEL_STR)
+            ),
+            "price_change_rate" => (
+                document.select(&CHANGE_RATE_SELECTOR).next().map(|el| el.text().collect::<String>().trim().to_string()),
+                Some(CHANGE_RATE_SEL_STR)
+            ),
             "update_time" => {
-                if let Some(el) = document.select(&TIME_SELECTOR_1).next() {
-                    Some(el.text().collect::<String>().trim().to_string())
+                // Special handling for ^DJI which often has different storage or formatting needs
+                // For now, we prioritize TIME_SELECTOR_1 but structure this so we can easily deviate
+                if code == "^DJI" {
+                    if let Some(el) = document.select(&TIME_SELECTOR_1).next() {
+                         (Some(el.text().collect::<String>().trim().to_string()), Some(TIME_SEL_STR_1))
+                    } else {
+                         (document.select(&TIME_SELECTOR_2).next().map(|el| el.text().collect::<String>().trim().to_string()), Some(TIME_SEL_STR_2))
+                    }
+                } else if let Some(el) = document.select(&TIME_SELECTOR_1).next() {
+                    (Some(el.text().collect::<String>().trim().to_string()), Some(TIME_SEL_STR_1))
                 } else {
-                    document.select(&TIME_SELECTOR_2).next().map(|el| el.text().collect::<String>().trim().to_string())
+                    (document.select(&TIME_SELECTOR_2).next().map(|el| el.text().collect::<String>().trim().to_string()), Some(TIME_SEL_STR_2))
                 }
             },
-            _ => None
+            _ => (None, None)
         };
 
         if let Some(val) = value {
             results.insert(key.clone(), Value::String(val));
         }
+        if let Some(sel) = selector_used {
+            selector_info.insert(key.clone(), Value::String(sel.to_string()));
+        }
     }
     
+    // Add the list of selectors used to the response
+    results.insert("selector_info".to_string(), Value::Object(selector_info));
+
     // Ensure essential keys are present
     if keys_to_process.contains(&"name".to_string()) && !results.contains_key("name") {
          return Err(worker::Error::from("Failed to scrape essential data (name) from DOM."));
