@@ -21,6 +21,13 @@
                             d="M480-160q-134 0-227-93t-93-227q0-134 93-227t227-93q69 0 132 28.5T720-690v-110h80v280H520v-80h168q-32-56-87.5-88T480-720q-100 0-170 70t-70 170q0 100 70 170t170 70q77 0 139-44t87-116h84q-28 106-114 178t-196 72Z" />
                     </svg>
                 </button>
+                <button id="updateAnalyzeBtn" class="icon-btn" title="Update & Analyze">
+                    <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24"
+                        fill="currentColor">
+                        <path
+                            d="M479-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-479q0-83 31.5-156T197-761q54-54 127-85.5T479-880q83 0 156 31.5T761-761q54 54 85.5 127T880-479q0 83-31.5 156T761-197q-54 54-127 85.5T479-80Zm0-80q120 0 203-83t83-203q0-120-83-203t-203-83q-120 0-203 83t-83 203q0 120 83 203t203 83Zm1-340q-41 0-70-29t-29-70q0-41 29-70t70-29q41 0 70 29t29 70q0 41-29 70t-70 29ZM440-240v-120H280q-17 0-28.5-11.5T240-379q0-17 11.5-28.5T280-420h120v-120q0-17 11.5-28.5T440-580q17 0 28.5 11.5T480-540v120h120q17 0 28.5 11.5T640-379q0 17-11.5 28.5T600-340H480v120q0 17-11.5 28.5T440-240Z" />
+                    </svg>
+                </button>
                 <button id="settingsBtn" class="icon-btn" title="Settings">
                     <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24"
                         fill="currentColor">
@@ -45,17 +52,33 @@
     </div>
 
     <div class="container">
-        <!-- Portfolio Section -->
-        <section class="portfolio-section">
-            <h2 class="section-title">Portfolio</h2>
-            <div class="portfolio-card">
-                <div style="font-size: 1rem; opacity: 0.8;">Total Asset Value</div>
-                <div id="totalAssetValue" class="portfolio-value">¥0</div>
-                <div id="totalGainLoss" class="portfolio-gain text-neutral">
-                    <span>¥0 (0.00%)</span>
+        <!-- Dashboard (Portfolio + Signals) -->
+        <div class="dashboard-grid">
+            <section class="dashboard-segment portfolio-section">
+                <h2 class="section-title">Portfolio</h2>
+                <div class="portfolio-card">
+                    <div style="font-size: 0.875rem; opacity: 0.8;">Total Asset Value</div>
+                    <div id="totalAssetValue" class="portfolio-value">¥0</div>
+                    <div id="totalGainLoss" class="portfolio-gain text-neutral">
+                        <span>¥0 (0.00%)</span>
+                    </div>
+                    <div id="totalDayChange" style="font-size: 0.75rem; margin-top: 4px; opacity: 0.9;">
+                        前日比: ¥0 (0.00%)
+                    </div>
                 </div>
-            </div>
-        </section>
+            </section>
+
+            <section id="signalsSection" class="dashboard-segment signals-section hidden">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <h2 class="section-title" style="margin: 0;">Signals</h2>
+                    <button id="clearSignalsBtn" class="secondary-btn"
+                        style="padding: 4px 12px; font-size: 0.75rem;">Clear All</button>
+                </div>
+                <div id="signalsContainer" class="signals-container">
+                    <!-- Signals will be injected here -->
+                </div>
+            </section>
+        </div>
 
         <!-- Watchlist Section -->
         <section>
@@ -73,8 +96,8 @@
             </div>
             <div id="emptyState" class="empty-state hidden"
                 style="text-align: center; padding: 40px; color: var(--outline);">
-                <p>No stocks in watchlist.</p>
-                <p>Click + to add stocks.</p>
+                <p>ウォッチリストに銘柄がありません。</p>
+                <p>+ ボタンを押して銘柄を追加してください。</p>
             </div>
         </section>
     </div>

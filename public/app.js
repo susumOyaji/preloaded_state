@@ -10,10 +10,11 @@ let refreshTimer = null;
 let editingId = null; // Track which stock is being edited (code + broker)
 
 // DOM Elements
-let indicesContainer, watchlistContainer, totalAssetValue, totalGainLoss, emptyState;
+let indicesContainer, watchlistContainer, totalAssetValue, totalGainLoss, totalDayChange, emptyState;
 let addStockModal, modalTitle, stockInput, brokerInput, quantityInput, priceInput, confirmAddBtn, cancelAddBtn, addStockBtn;
 let settingsModal, apiEndpointInput, refreshIntervalInput, themeToggle, saveSettingsBtn, cancelSettingsBtn, settingsBtn;
 let refreshBtn, toast;
+let signalsSection, signalsContainer, clearSignalsBtn;
 
 // Initialize
 function init() {
@@ -22,6 +23,7 @@ function init() {
     watchlistContainer = document.getElementById('watchlistContainer');
     totalAssetValue = document.getElementById('totalAssetValue');
     totalGainLoss = document.getElementById('totalGainLoss');
+    totalDayChange = document.getElementById('totalDayChange');
     emptyState = document.getElementById('emptyState');
 
     addStockModal = document.getElementById('addStockModal');
@@ -44,6 +46,10 @@ function init() {
 
     refreshBtn = document.getElementById('refreshBtn');
     toast = document.getElementById('toast');
+
+    signalsSection = document.getElementById('signalsSection');
+    signalsContainer = document.getElementById('signalsContainer');
+    clearSignalsBtn = document.getElementById('clearSignalsBtn');
 
     loadSettings();
 
@@ -94,6 +100,31 @@ function setupEventListeners() {
 
     // Refresh
     refreshBtn.addEventListener('click', fetchData);
+
+    // Update & Analyze
+    const updateAnalyzeBtn = document.getElementById('updateAnalyzeBtn');
+    if (updateAnalyzeBtn) {
+        updateAnalyzeBtn.addEventListener('click', handleUpdateAndAnalyze);
+    }
+
+    // Clear Signals (Delete from DB)
+    if (clearSignalsBtn) {
+        clearSignalsBtn.addEventListener('click', async () => {
+            if (!confirm('Are you sure you want to clear ALL signal history?')) return;
+
+            try {
+                let baseUrl = settings.apiEndpoint || window.location.origin;
+                const response = await fetch(`${baseUrl}/api/signals`, { method: 'DELETE' });
+                if (response.ok) {
+                    renderSignals([]);
+                    showToast('All signals cleared from database');
+                }
+            } catch (error) {
+                console.error('Clear signals error:', error);
+                showToast('Failed to clear signals', 'error');
+            }
+        });
+    }
 
     // Close modals on backdrop click
     window.addEventListener('click', (e) => {
@@ -157,7 +188,7 @@ async function fetchData() {
             baseUrl = baseUrl.slice(0, -1);
         }
 
-        const url = `${baseUrl}/?code=${encodeURIComponent(codesParam)}`;
+        const url = `${baseUrl}/api/scrape?code=${encodeURIComponent(codesParam)}`;
 
         const response = await fetch(url);
         if (!response.ok) throw new Error('Network response was not ok');
@@ -185,7 +216,111 @@ async function fetchData() {
         console.error('Fetch error:', error);
         showToast('Failed to fetch data', 'error');
     }
+
+    // Also fetch latest signals
+    fetchSignals();
 }
+
+async function fetchSignals() {
+    try {
+        let baseUrl = settings.apiEndpoint;
+        if (!baseUrl) {
+            baseUrl = window.location.origin;
+        } else if (baseUrl.endsWith('/')) {
+            baseUrl = baseUrl.slice(0, -1);
+        }
+
+        const url = `${baseUrl}/api/signals`;
+        const response = await fetch(url);
+        if (!response.ok) return;
+
+        const signals = await response.json();
+        renderSignals(signals);
+    } catch (error) {
+        console.error('Fetch signals error:', error);
+    }
+}
+
+function renderSignals(signals) {
+    if (!signalsContainer) return;
+    signalsContainer.innerHTML = '';
+
+    if (!signals || signals.length === 0) {
+        signalsSection.classList.add('hidden');
+        return;
+    }
+
+    signalsSection.classList.remove('hidden');
+
+    // Sort signals by date descending (Keep all in DOM to allow scrolling)
+    const sortedSignals = signals.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    sortedSignals.forEach(signal => {
+        const card = document.createElement('div');
+        const typeClass = signal.signalType.toLowerCase();
+        card.className = `signal-card ${typeClass}`;
+
+        const date = new Date(signal.date).toLocaleDateString();
+
+        card.innerHTML = `
+            <span class="signal-type-badge ${typeClass}">${signal.signalType}</span>
+            <div class="signal-info">
+                <div class="signal-code">${escapeHtml(signal.code)}</div>
+                <div class="signal-reason">${escapeHtml(signal.reason)}</div>
+            </div>
+            <div class="signal-meta">
+                <div class="signal-price">¥${parseFloat(signal.priceAtSignal).toLocaleString()}</div>
+                <div class="signal-date">${date}</div>
+            </div>
+        `;
+        signalsContainer.appendChild(card);
+    });
+}
+
+// New function for Update & Analyze
+async function handleUpdateAndAnalyze() {
+    showToast('Updating data and analyzing signals...', 'info');
+    try {
+        let baseUrl = settings.apiEndpoint;
+        if (!baseUrl) {
+            baseUrl = window.location.origin;
+        } else if (baseUrl.endsWith('/')) {
+            baseUrl = baseUrl.slice(0, -1);
+        }
+
+        const url = `${baseUrl}/api/update`;
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ stocks: stocks })
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Network response was not ok: ${response.status} - ${errorText}`);
+        }
+
+        const result = await response.json();
+        console.log('Update & Analyze Result:', result);
+
+        if (result.success) {
+            showToast('Data update and analysis complete!', 'success');
+            // 更新後に最新のデータを取得・表示
+            await fetchData();
+            await fetchSignals();
+        } else {
+            showToast(`Update & Analyze failed: ${result.logs ? result.logs.join(', ') : 'Unknown error'}`, 'error');
+        }
+
+    } catch (error) {
+        console.error('Update & Analyze error:', error);
+        showToast(`Failed to update data and analyze signals: ${error.message}`, 'error');
+    }
+}
+
 
 // Rendering
 function renderIndices(data) {
@@ -404,31 +539,56 @@ function calculatePortfolio(apiDataList) {
 
     let totalAsset = 0;
     let totalInvestment = 0;
+    let totalDayChangeVal = 0;
 
     stocks.forEach(stock => {
         if (stock.quantity > 0) {
             const apiItem = apiDataMap[stock.code];
-            const priceStr = (apiItem && apiItem.data && apiItem.data.price) || '0';
+            const data = (apiItem && apiItem.data) || {};
+            const priceStr = data.price || '0';
             const currentPrice = parseFloat(priceStr.replace(/,/g, '')) || 0;
+
+            // For Day Change Calculation
+            const priceChangeRaw = data.price_change || '0';
+            const priceChange = parseFloat(String(priceChangeRaw).replace(/,/g, '')) || 0;
 
             totalAsset += currentPrice * stock.quantity;
             totalInvestment += stock.avgPrice * stock.quantity;
+            totalDayChangeVal += priceChange * stock.quantity;
         }
     });
 
     const totalGainLossVal = totalAsset - totalInvestment;
     const totalGainLossPercent = totalInvestment > 0 ? (totalGainLossVal / totalInvestment) * 100 : 0;
 
+    const prevTotalAsset = totalAsset - totalDayChangeVal;
+    const totalDayChangePercent = prevTotalAsset > 0 ? (totalDayChangeVal / prevTotalAsset) * 100 : 0;
+
     const glColorClass = totalGainLossVal >= 0 ? 'text-success' : 'text-danger';
     const glPrefix = totalGainLossVal >= 0 ? '+' : '';
 
+    const dcColorClass = totalDayChangeVal >= 0 ? 'text-success' : 'text-danger';
+    const dcPrefix = totalDayChangeVal >= 0 ? '+' : '';
+
     totalAssetValue.textContent = `¥${Math.round(totalAsset).toLocaleString()}`;
+
+    // Total Gain/Loss (Historical)
     totalGainLoss.innerHTML = `
         <span class="${glColorClass}" style="display:flex; align-items:center; gap:4px;">
-            ${glPrefix}¥${Math.round(totalGainLossVal).toLocaleString()} 
+            累計損益: ${glPrefix}¥${Math.round(totalGainLossVal).toLocaleString()} 
             <span style="font-size:0.875rem;">(${glPrefix}${totalGainLossPercent.toFixed(2)}%)</span>
         </span>
     `;
+
+    // Day Change
+    if (totalDayChange) {
+        totalDayChange.innerHTML = `
+            <span class="${dcColorClass}">
+                前日比: ${dcPrefix}¥${Math.round(totalDayChangeVal).toLocaleString()} 
+                (${dcPrefix}${totalDayChangePercent.toFixed(2)}%)
+            </span>
+        `;
+    }
 }
 
 // Actions

@@ -2,7 +2,6 @@
 
 use serde::{Deserialize, Serialize};
 use chrono::{NaiveDate};
-use worker::Error;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Stock {
@@ -58,7 +57,7 @@ pub struct Signal {
     pub price_at_signal: f64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SignalInput {
     pub code: String,
     #[serde(rename = "signalType")]
@@ -69,9 +68,23 @@ pub struct SignalInput {
     pub price_at_signal: f64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StockInfo {
     pub code: String,
     pub name: String,
     pub market: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FrontendStock {
+    pub code: String,
+    pub broker: Option<String>,
+    pub quantity: i32,
+    #[serde(rename = "avgPrice")]
+    pub avg_price: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateRequest {
+    pub stocks: Vec<FrontendStock>,
 }

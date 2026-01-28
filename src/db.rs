@@ -1,23 +1,21 @@
 // preloaded_state/src/libnode/db.rs
 
 use worker::*;
-use async_trait::async_trait;
-use crate::libnode::models;
-use chrono::NaiveDate;
-use serde_json::json;
+use crate::models;
+use wasm_bindgen::JsValue;
 
 pub async fn initialize_db(d1: &D1Database) -> Result<()> {
     // Create stocks table
-    d1.exec("
+    d1.prepare("
         CREATE TABLE IF NOT EXISTS stocks (
             code TEXT PRIMARY KEY,
             name TEXT NOT NULL,
             market TEXT
         );
-    ").await?;
+    ").run().await?;
 
     // Create daily_prices table
-    d1.exec("
+    d1.prepare("
         CREATE TABLE IF NOT EXISTS daily_prices (
             code TEXT NOT NULL,
             date TEXT NOT NULL,
@@ -28,10 +26,10 @@ pub async fn initialize_db(d1: &D1Database) -> Result<()> {
             volume INTEGER,
             PRIMARY KEY (code, date)
         );
-    ").await?;
+    ").run().await?;
 
     // Create portfolio_items table
-    d1.exec("
+    d1.prepare("
         CREATE TABLE IF NOT EXISTS portfolio_items (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             code TEXT NOT NULL,
@@ -39,10 +37,10 @@ pub async fn initialize_db(d1: &D1Database) -> Result<()> {
             purchase_price REAL NOT NULL,
             purchase_date TEXT NOT NULL
         );
-    ").await?;
+    ").run().await?;
 
     // Create signals table
-    d1.exec("
+    d1.prepare("
         CREATE TABLE IF NOT EXISTS signals (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             code TEXT NOT NULL,
@@ -51,7 +49,7 @@ pub async fn initialize_db(d1: &D1Database) -> Result<()> {
             date TEXT NOT NULL,
             price_at_signal REAL NOT NULL
         );
-    ").await?;
+    ").run().await?;
 
     Ok(())
 }
@@ -83,13 +81,18 @@ pub async fn delete_stock(d1: &D1Database, code: &str) -> Result<()> {
 }
 
 pub async fn get_all_signals(d1: &D1Database) -> Result<Vec<models::Signal>> {
-    let statement = d1.prepare("SELECT id, code, signal_type, reason, date, price_at_signal FROM signals");
+    let statement = d1.prepare("SELECT id, code, signal_type AS signalType, reason, date, price_at_signal AS priceAtSignal FROM signals");
     let results = statement.all().await?.results::<models::Signal>()?;
     Ok(results)
 }
 
+pub async fn delete_all_signals(d1: &D1Database) -> Result<()> {
+    d1.prepare("DELETE FROM signals").run().await?;
+    Ok(())
+}
+
 pub async fn save_signal(d1: &D1Database, signal: models::SignalInput) -> Result<()> {
-    d1.prepare("INSERT INTO signals (code, signal_type, reason, date, price_at_signal) VALUES (?, ?, ?, ?, ?)")
+    d1.prepare("INSERT OR IGNORE INTO signals (code, signal_type, reason, date, price_at_signal) VALUES (?, ?, ?, ?, ?)")
         .bind(&[
             signal.code.into(),
             signal.signal_type.into(),
@@ -143,7 +146,7 @@ pub async fn upsert_daily_price(d1: &D1Database, price: models::DailyPrice) -> R
             price.high.into(),
             price.low.into(),
             price.close.into(),
-            price.volume.into(),
+            (price.volume as f64).into(),
         ])?
         .run()
         .await?;

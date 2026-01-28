@@ -5,3 +5,8 @@ compatibility_date = "2025-11-18"
 
 [build]
 command = "cargo install -q worker-build && worker-build --release"
+
+[[d1_databases]]
+binding = "preloaded_state_db"
+database_name = "preloaded_state_db"
+database_id = "8dea5a32-2294-4a9e-8fa3-b01a15f39fce"
