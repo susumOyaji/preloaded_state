@@ -44,6 +44,23 @@ UIをデプロイした後、ブラウザでアプリを開き：
 
 これで UI と API が連携されます。
 
+### 4. GitHub 連携（自動デプロイ）の設定
+
+GitHub にプッシュした際に自動でフロントエンドが更新されるように設定する場合：
+
+1.  **Cloudflare Dashboard** にログインし、「Workers & Pages」>「Create」>「Pages」>「Connect to Git」を選択。
+2.  対象の GitHub リポジトリを選択。
+3.  **ビルド設定**で以下を入力：
+    *   **Project name**: `preloaded-state` (任意)
+    *   **Production branch**: `main`
+    *   **Framework preset**: `None`
+    *   **Root directory**: `/frontend` (重要：モノレポ構成のため)
+    *   **Build command**: (なし)
+    *   **Build output directory**: `public`
+4.  「Save and Deploy」をクリック。
+
+以降、`git push` を行うだけでフロントエンドが自動デプロイされます。
+
 ## 開発（ローカル）
 
 ### APIの起動

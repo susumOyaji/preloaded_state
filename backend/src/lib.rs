@@ -176,7 +176,6 @@ async fn handle_post_update(mut req: Request, ctx: RouteContext<()>) -> Result<R
     let d1 = ctx.d1("DB")?;
     let mut logs: Vec<String> = Vec::new();
 
-    // Catch JSON parse error if body is empty or malformed
     let update_req: models::UpdateRequest = match req.json().await {
         Ok(res) => res,
         Err(e) => return Response::error(format!("Invalid JSON: {}", e), 400),
@@ -187,74 +186,80 @@ async fn handle_post_update(mut req: Request, ctx: RouteContext<()>) -> Result<R
         update_req.stocks.len()
     ));
 
+    // Get unique codes
+    let unique_codes: Vec<String> = update_req.stocks.iter()
+        .map(|s| s.code.clone())
+        .collect::<std::collections::HashSet<_>>()
+        .into_iter()
+        .collect();
+
     let mut new_signals_count = 0;
     
-    // Get unique codes to avoid redundant fetches
-    let mut unique_codes: std::collections::HashSet<String> = std::collections::HashSet::new();
-    for s in &update_req.stocks {
-        unique_codes.insert(s.code.clone());
-    }
-
-    for code in unique_codes {
-        console_log!("--- Processing unique code: {} ---", code);
-        match fetcher::fetch_stock_data(&code, 150).await {
-            Ok(prices) => {
-                console_log!("[{}] Fetched {} price records.", code, prices.len());
-                if !prices.is_empty() {
-                    // Update DB with latest prices (Cache)
-                    for price in &prices {
-                        db::upsert_daily_price(&d1, price.clone()).await?;
-                    }
-                    logs.push(format!("[{}]. Data updated ({} records).", code, prices.len()));
-
-                    let stock_model = models::Stock {
-                        code: code.clone(),
-                        name: code.clone(),
-                        market: None,
-                    };
-
-                    // Check if user owns this stock in ANY broker
-                    let owned_entries: Vec<&models::FrontendStock> = update_req.stocks.iter()
-                        .filter(|s| s.code == code && s.quantity > 0)
-                        .collect();
-                    
-                    if owned_entries.is_empty() {
-                        // 1. BUY Analysis (Only for stocks not yet owned)
-                        if let Some(buy_signal) = analysis::analyze_stock_for_buy(&stock_model, &prices) {
-                            db::save_signal(&d1, buy_signal).await?;
-                            new_signals_count += 1;
-                            console_log!("[{}] BUY SIGNAL DETECTED!", code);
-                            logs.push(format!("[{}] BUY SIGNAL DETECTED!", code));
+    // Create a list of futures to process each stock concurrently
+    let update_futures = unique_codes.into_iter().map(|code| {
+        let d1 = &d1;
+        let update_req = &update_req;
+        async move {
+            match fetcher::fetch_stock_data(&code, 150).await {
+                Ok(prices) => {
+                    if !prices.is_empty() {
+                        // Bulk database operations are not fully available in worker-rs D1 yet,
+                        // so we still loop, but concurrent execution of the outer futures will hide latency.
+                        for price in &prices {
+                            let _ = db::upsert_daily_price(d1, price.clone()).await;
                         }
+
+                        let stock_model = models::Stock {
+                            code: code.clone(),
+                            name: code.clone(),
+                            market: None,
+                        };
+
+                        let mut signals_found = 0;
+                        let owned_entries: Vec<&models::FrontendStock> = update_req.stocks.iter()
+                            .filter(|s| s.code == code && s.quantity > 0)
+                            .collect();
+                        
+                        if owned_entries.is_empty() {
+                            if let Some(buy_signal) = analysis::analyze_stock_for_buy(&stock_model, &prices) {
+                                let _ = db::save_signal(d1, buy_signal).await;
+                                signals_found += 1;
+                            }
+                        } else {
+                            let min_avg_price = owned_entries.iter()
+                                .map(|s| s.avg_price)
+                                .fold(f64::INFINITY, f64::min);
+
+                            if let Some(sell_signal) = analysis::analyze_stock_for_sell(
+                                &stock_model,
+                                &prices,
+                                min_avg_price,
+                            ) {
+                                let _ = db::save_signal(d1, sell_signal).await;
+                                signals_found += 1;
+                            }
+                        }
+                        Ok((code, prices.len(), signals_found))
                     } else {
-                        // 2. SELL Analysis (Only for owned stocks)
-                        // Use the lowest avg_price among entries for conservative stop-loss/profit-taking
-                        let min_avg_price = owned_entries.iter()
-                            .map(|s| s.avg_price)
-                            .fold(f64::INFINITY, f64::min);
-
-                        if let Some(sell_signal) = analysis::analyze_stock_for_sell(
-                            &stock_model,
-                            &prices,
-                            min_avg_price,
-                        ) {
-                            db::save_signal(&d1, sell_signal.clone()).await?;
-                            new_signals_count += 1;
-                            console_log!("[{}] SELL SIGNAL DETECTED! Reason: {}", code, sell_signal.reason);
-                            logs.push(format!(
-                                "[{}]. SELL SIGNAL DETECTED! ({})",
-                                code, sell_signal.reason
-                            ));
-                        }
+                        Err(format!("[{}] No data", code))
                     }
-                } else {
-                    console_log!("[{}] No data retrieved.", code);
-                    logs.push(format!("[{}] No data retrieved.", code));
                 }
+                Err(e) => Err(format!("[{}] Error: {}", code, e))
+            }
+        }
+    });
+
+    // Execute all updates concurrently
+    let results = futures::future::join_all(update_futures).await;
+
+    for res in results {
+        match res {
+            Ok((code, price_count, signals)) => {
+                logs.push(format!("[{}]. Updated ({}), Signals: {}", code, price_count, signals));
+                new_signals_count += signals;
             }
             Err(e) => {
-                console_log!("[{}] Fetch Error: {}", code, e);
-                logs.push(format!("[{}] Error: {}", code, e));
+                logs.push(e);
             }
         }
     }
