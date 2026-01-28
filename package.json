@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "build": "cargo install -q worker-build && worker-build --release && mkdir -p dist && cp -r public/* dist/ && cp build/index.js dist/_worker.js"
+  },
   "devDependencies": {
     "wrangler": "^4.50.0"
   }

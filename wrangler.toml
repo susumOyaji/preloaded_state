@@ -1,12 +1,8 @@
 name = "preloaded_state"
-account_id = "5dc36ef7b37a69500bd080cb310ba2ce"
-main = "build/index.js"
 compatibility_date = "2025-11-18"
-
-[build]
-command = "cargo install -q worker-build && worker-build --release"
+pages_build_output_dir = "dist"
 
 [[d1_databases]]
-binding = "preloaded_state_db"
+binding = "DB"
 database_name = "preloaded_state_db"
 database_id = "8dea5a32-2294-4a9e-8fa3-b01a15f39fce"
