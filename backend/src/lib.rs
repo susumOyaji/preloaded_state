@@ -346,30 +346,6 @@ async fn handle_scrape(req: Request, _ctx: RouteContext<()>) -> Result<Response>
     Response::from_json(&results)
 }
 
-fn serve_static_file(req: Request) -> Result<Response> {
-    let path = req.url()?.path().to_string();
-    match path.as_str() {
-        "/" | "/index.html" => {
-            let html = include_str!("../public/index.html");
-            Response::from_html(html)
-        }
-        "/style.css" => {
-            let css = include_str!("../public/style.css");
-            let mut response = Response::ok(css)?;
-            response.headers_mut().set("Content-Type", "text/css")?;
-            Ok(response)
-        }
-        "/app.js" => {
-            let js = include_str!("../public/app.js");
-            let mut response = Response::ok(js)?;
-            response
-                .headers_mut()
-                .set("Content-Type", "application/javascript")?;
-            Ok(response)
-        }
-        _ => Response::error("Not found", 404),
-    }
-}
 
 async fn fetch_single_code(code: String, keys: Option<Vec<String>>) -> CodeResult {
     if code.len() > 20 || code.contains('/') || code.contains('\\') {
@@ -881,11 +857,6 @@ pub async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         .post_async("/api/update", handle_post_update)
         // --- Original lib.rs scraper route ---
         .get_async("/api/scrape", handle_scrape)
-        // --- Static file serving ---
-        .get("/", |req, _| serve_static_file(req))
-        .get("/index.html", |req, _| serve_static_file(req))
-        .get("/style.css", |req, _| serve_static_file(req))
-        .get("/app.js", |req, _| serve_static_file(req))
         .run(req, env)
         .await?;
 

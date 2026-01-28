@@ -12,25 +12,49 @@ Yahoo Finance Japanから株価、指数、為替データをリアルタイム�
 
 ## 技術スタック
 
-- **バックエンド**: Rust + Cloudflare Workers
-- **フロントエンド**: HTML + CSS + JavaScript（バニラ）
-- **デプロイ**: Cloudflare Workers
+- **バックエンド (API)**: Rust + Cloudflare Workers
+- **フロントエンド (UI)**: HTML + CSS + JavaScript（バニラ） + Cloudflare Pages
+- **データベース**: Cloudflare D1 (SQLite)
 
-## 起動方法
+## セットアップとデプロイ
 
-### ローカル開発サーバー
+ルートディレクトリから `npm` コマンドを使用してデプロイを行います。
+
+### 1. 初回準備（D1 データベース）
+
+Cloudflare D1 データベースを作成し、IDを `backend/wrangler.toml` に設定してください。
 
 ```bash
+npx wrangler d1 create preloaded_state_db
+```
+
+### 2. デプロイ
+
+| コマンド | 内容 |
+| :--- | :--- |
+| `npm run deploy:backend` | APIを Cloudflare Workers にデプロイ |
+| `npm run deploy:frontend` | UIを Cloudflare Pages にデプロイ |
+| `npm run deploy:all` | APIとUIを両方一括でデプロイ |
+
+### 3. APIエンドポイントの設定
+
+UIをデプロイした後、ブラウザでアプリを開き：
+1. 右上の⚙️アイコン（設定）をクリック
+2. **API Endpoint** にデプロイした Worker の URL (例: `https://preloaded_state-api.xxx.workers.dev`) を入力して保存
+
+これで UI と API が連携されます。
+
+## 開発（ローカル）
+
+### APIの起動
+```bash
+cd backend
 npx wrangler dev
 ```
 
-サーバーが起動したら、ブラウザで `http://localhost:8787` にアクセスしてください。
-
-### Cloudflareへのデプロイ
-
-```bash
-npx wrangler deploy
-```
+### UIの起動
+`frontend/public/index.html` をブラウザで直接開くか、任意の静的サーバーで起動してください。
+設定画面から API Endpoint を `http://localhost:8787` に向けることでローカルの API と通信できます。
 
 ## 使い方
 
@@ -51,13 +75,14 @@ npx wrangler deploy
 右上の⚙️アイコンから以下を設定できます:
 - APIエンドポイント
 - 自動更新間隔（10-300秒）
+- テーマ（ライト/ダーク）
 
 ## API仕様
 
 ### エンドポイント
 
 ```
-GET /?code=CODE1,CODE2,...
+GET /api/scrape?code=CODE1,CODE2,...
 ```
 
 ### パラメータ
@@ -86,19 +111,18 @@ GET /?code=CODE1,CODE2,...
 ]
 ```
 
-## プロジェクト構造
+## ディレクトリ構成
 
-```
+```text
 preloaded_state/
-├── src/
-│   └── lib.rs              # Rustバックエンドコード
-├── public/
-│   ├── index.html          # フロントエンドHTML
-│   ├── style.css           # スタイルシート
-│   └── app.js              # JavaScriptロジック
-├── wrangler.toml           # Cloudflare Workers設定
-├── Cargo.toml              # Rust依存関係
-└── README.md               # このファイル
+├── backend/            # API (Cloudflare Worker)
+│   ├── src/           # Rustコード
+│   ├── Cargo.toml     # Rust依存関係
+│   └── wrangler.toml  # Worker用設定
+├── frontend/           # UI (Cloudflare Pages)
+│   ├── public/        # HTML/CSS/JS (静的ファイル)
+│   └── wrangler.toml  # Pages用設定
+└── package.json        # 全体管理用スクリプト
 ```
 
 ## ライセンス

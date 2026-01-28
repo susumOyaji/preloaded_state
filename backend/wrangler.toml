@@ -1,6 +1,9 @@
-name = "preloaded_state"
+name = "preloaded_state-api"
+main = "build/index.js"
 compatibility_date = "2025-11-18"
-pages_build_output_dir = "dist"
+
+[build]
+command = "cargo install -q worker-build && worker-build --release"
 
 [[d1_databases]]
 binding = "DB"
