@@ -53,12 +53,6 @@ function init() {
 
     loadSettings();
 
-    // Force reset apiEndpoint if it's pointing to the old worker URL to fix CORS on localhost
-    if (settings.apiEndpoint && settings.apiEndpoint.includes('workers.dev')) {
-        console.log('Resetting apiEndpoint to relative path for compatibility');
-        settings.apiEndpoint = '';
-        saveSettings();
-    }
 
     loadStocks();
     applyTheme();
@@ -652,10 +646,12 @@ function removeStock(code, broker) {
 window.removeStock = removeStock;
 
 function handleSaveSettings() {
+    console.log('Saving settings...');
     settings.apiEndpoint = apiEndpointInput.value.trim();
     settings.refreshInterval = parseInt(refreshIntervalInput.value);
     settings.theme = themeToggle.checked ? 'dark' : 'light';
 
+    console.log('New stats:', settings);
     saveSettings();
     applyTheme();
     settingsModal.classList.remove('active');
@@ -733,8 +729,15 @@ function saveSettings() {
 
 function loadSettings() {
     const saved = localStorage.getItem('settings');
+    console.log('Loading settings from localStorage:', saved);
     if (saved) {
-        settings = { ...settings, ...JSON.parse(saved) };
+        try {
+            const parsed = JSON.parse(saved);
+            settings = { ...settings, ...parsed };
+            console.log('Merged settings:', settings);
+        } catch (e) {
+            console.error('Error parsing settings:', e);
+        }
     }
 }
 
