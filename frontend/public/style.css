@@ -185,28 +185,17 @@ body {
     grid-auto-rows: 1fr;
 }
 
-/* Full-bleed wrapper for sections that should span the viewport */
+/* Full-bleed wrapper removed or restricted */
 .full-bleed {
-    width: 100vw;
-    position: relative;
-    left: 50%;
-    right: 50%;
-    margin-left: -50vw;
-    margin-right: -50vw;
-    box-sizing: border-box;
+    width: 100%;
+    margin-bottom: var(--spacing-lg);
 }
 
 .full-bleed .indices-section {
-    /* Remove internal padding so the indices grid can touch viewport edges */
     padding: 0;
-    box-sizing: border-box;
 }
 
 @media (max-width: 600px) {
-    .full-bleed .indices-section {
-        padding-left: var(--spacing-md);
-        padding-right: var(--spacing-md);
-    }
 
     .indices-grid {
         grid-template-columns: 1fr;

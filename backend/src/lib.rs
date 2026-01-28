@@ -213,31 +213,38 @@ async fn handle_post_update(mut req: Request, ctx: RouteContext<()>) -> Result<R
                         market: None,
                     };
 
-                    // Buy Analysis
-                    if let Some(buy_signal) = analysis::analyze_stock_for_buy(&stock_model, &prices) {
-                        db::save_signal(&d1, buy_signal).await?;
-                        new_signals_count += 1;
-                        console_log!("[{}] BUY SIGNAL DETECTED!", code);
-                        logs.push(format!("[{}] BUY SIGNAL DETECTED!", code));
-                    }
+                    // Check if user owns this stock in ANY broker
+                    let owned_entries: Vec<&models::FrontendStock> = update_req.stocks.iter()
+                        .filter(|s| s.code == code && s.quantity > 0)
+                        .collect();
+                    
+                    if owned_entries.is_empty() {
+                        // 1. BUY Analysis (Only for stocks not yet owned)
+                        if let Some(buy_signal) = analysis::analyze_stock_for_buy(&stock_model, &prices) {
+                            db::save_signal(&d1, buy_signal).await?;
+                            new_signals_count += 1;
+                            console_log!("[{}] BUY SIGNAL DETECTED!", code);
+                            logs.push(format!("[{}] BUY SIGNAL DETECTED!", code));
+                        }
+                    } else {
+                        // 2. SELL Analysis (Only for owned stocks)
+                        // Use the lowest avg_price among entries for conservative stop-loss/profit-taking
+                        let min_avg_price = owned_entries.iter()
+                            .map(|s| s.avg_price)
+                            .fold(f64::INFINITY, f64::min);
 
-                    // Sell Analysis (Check all corresponding entries in localStorage list)
-                    let same_code_stocks = update_req.stocks.iter().filter(|s| s.code == code);
-                    for f_stock in same_code_stocks {
-                        if f_stock.quantity > 0 {
-                            if let Some(sell_signal) = analysis::analyze_stock_for_sell(
-                                &stock_model,
-                                &prices,
-                                f_stock.avg_price,
-                            ) {
-                                db::save_signal(&d1, sell_signal.clone()).await?;
-                                new_signals_count += 1;
-                                console_log!("[{}] SELL SIGNAL DETECTED! Reason: {}", code, sell_signal.reason);
-                                logs.push(format!(
-                                    "[{}]. SELL SIGNAL DETECTED! ({})",
-                                    code, sell_signal.reason
-                                ));
-                            }
+                        if let Some(sell_signal) = analysis::analyze_stock_for_sell(
+                            &stock_model,
+                            &prices,
+                            min_avg_price,
+                        ) {
+                            db::save_signal(&d1, sell_signal.clone()).await?;
+                            new_signals_count += 1;
+                            console_log!("[{}] SELL SIGNAL DETECTED! Reason: {}", code, sell_signal.reason);
+                            logs.push(format!(
+                                "[{}]. SELL SIGNAL DETECTED! ({})",
+                                code, sell_signal.reason
+                            ));
                         }
                     }
                 } else {

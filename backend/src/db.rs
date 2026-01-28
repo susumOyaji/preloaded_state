@@ -51,6 +51,9 @@ pub async fn initialize_db(d1: &D1Database) -> Result<()> {
         );
     ").run().await?;
 
+    // Add unique index to prevent duplicate signals
+    d1.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_signals_unique ON signals(code, signal_type, date, reason);").run().await?;
+
     Ok(())
 }
 

@@ -22,7 +22,7 @@ pub fn analyze_stock_for_buy(
     stock: &models::Stock,
     prices: &[models::DailyPrice],
 ) -> Option<models::SignalInput> {
-    if prices.len() < 30 { // Need at least 25+ days for SMA25 + buffer for cross detection
+    if prices.len() < 30 {
         return None;
     }
 
@@ -47,10 +47,24 @@ pub fn analyze_stock_for_buy(
         }
     }
 
-    // 2. 25-day Moving Average Divergence Logic (Oversold)
+    // 2. Trend Breakout (Price crosses above SMA25)
+    if let Some(sma25) = calculate_sma(prices, 25) {
+        let prev_sma25 = calculate_sma(&prices[1..], 25).unwrap_or(sma25);
+        if latest_price.close > sma25 && prev_price.close <= prev_sma25 {
+            return Some(models::SignalInput {
+                code: stock.code.clone(),
+                signal_type: "BUY".to_string(),
+                reason: "Price broke above SMA 25".to_string(),
+                date: latest_price.date,
+                price_at_signal: latest_price.close,
+            });
+        }
+    }
+
+    // 3. Oversold Rebound (Price significantly below SMA25)
     if let Some(sma25) = calculate_sma(prices, 25) {
         let divergence = calculate_divergence_rate(latest_price.close, sma25);
-        if divergence < -10.0 {
+        if divergence < -15.0 {
             return Some(models::SignalInput {
                 code: stock.code.clone(),
                 signal_type: "BUY".to_string(),
@@ -59,18 +73,6 @@ pub fn analyze_stock_for_buy(
                 price_at_signal: latest_price.close,
             });
         }
-    }
-
-    // 3. Simple Drop Logic: 5% lower than previous day
-    if latest_price.close < prev_price.close * 0.95 {
-        return Some(models::SignalInput {
-            code: stock.code.clone(),
-            signal_type: "BUY".to_string(),
-            reason: format!("Sharp Drop: {:.1}% vs yesterday", 
-                ((prev_price.close - latest_price.close) / prev_price.close) * 100.0),
-            date: latest_price.date,
-            price_at_signal: latest_price.close,
-        });
     }
 
     None
@@ -87,8 +89,31 @@ pub fn analyze_stock_for_sell(
     }
 
     let latest_price = &prices[0];
+    let prev_price = &prices[1];
 
-    // 1. Dead Cross Detection (SMA5 crosses SMA25 downward)
+    // 1. profit-taking (Reached 10% gain)
+    if latest_price.close > purchase_price * 1.10 {
+        return Some(models::SignalInput {
+            code: stock.code.clone(),
+            signal_type: "SELL".to_string(),
+            reason: format!("Profit taking: 10% gain reached (Price: ¥{})", latest_price.close),
+            date: latest_price.date,
+            price_at_signal: latest_price.close,
+        });
+    }
+
+    // 2. Stop Loss (Dropped 5% from purchase)
+    if latest_price.close < purchase_price * 0.95 {
+        return Some(models::SignalInput {
+            code: stock.code.clone(),
+            signal_type: "SELL".to_string(),
+            reason: format!("Stop loss: 5% drop reached (Price: ¥{})", latest_price.close),
+            date: latest_price.date,
+            price_at_signal: latest_price.close,
+        });
+    }
+
+    // 3. Dead Cross Detection (SMA5 crosses SMA25 downward)
     if let (Some(curr_sma5), Some(curr_sma25), Some(prev_sma5), Some(prev_sma25)) = (
         calculate_sma(prices, 5),
         calculate_sma(prices, 25),
@@ -106,39 +131,18 @@ pub fn analyze_stock_for_sell(
         }
     }
 
-    // 2. 25-day Moving Average Overbought Logic
+    // 4. Trend Breakdown (Price crosses below SMA25)
     if let Some(sma25) = calculate_sma(prices, 25) {
-        let divergence = calculate_divergence_rate(latest_price.close, sma25);
-        if divergence > 15.0 {
+        let prev_sma25 = calculate_sma(&prices[1..], 25).unwrap_or(sma25);
+        if latest_price.close < sma25 && prev_price.close >= prev_sma25 {
             return Some(models::SignalInput {
                 code: stock.code.clone(),
                 signal_type: "SELL".to_string(),
-                reason: format!("Overbought: {:.1}% above 25-day average", divergence),
+                reason: "Price dropped below SMA 25".to_string(),
                 date: latest_price.date,
                 price_at_signal: latest_price.close,
             });
         }
-    }
-
-    // 3. Profit/Loss Logic
-    if latest_price.close > purchase_price * 1.10 {
-        return Some(models::SignalInput {
-            code: stock.code.clone(),
-            signal_type: "SELL".to_string(),
-            reason: "Reached 10% profit margin".to_string(),
-            date: latest_price.date,
-            price_at_signal: latest_price.close,
-        });
-    }
-
-    if latest_price.close < purchase_price * 0.95 {
-        return Some(models::SignalInput {
-            code: stock.code.clone(),
-            signal_type: "SELL".to_string(),
-            reason: "Reached 5% loss margin".to_string(),
-            date: latest_price.date,
-            price_at_signal: latest_price.close,
-        });
     }
 
     None
