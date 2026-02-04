@@ -567,6 +567,8 @@ body {
     pointer-events: none;
     min-width: 250px;
     text-align: center;
+    cursor: pointer;
+    user-select: none;
 }
 
 .toast.success {
@@ -598,4 +600,30 @@ body {
     .watchlist-grid {
         grid-template-columns: 1fr;
     }
+}
+
+/* Debug Section */
+.debug-section {
+    margin-top: var(--spacing-xl);
+    padding-top: var(--spacing-lg);
+    border-top: 1px dashed var(--outline);
+}
+
+.debug-container {
+    background: #1e1e1e;
+    /* Dark theme for code */
+    color: #d4d4d4;
+    padding: var(--spacing-md);
+    border-radius: var(--radius-md);
+    overflow: auto;
+    max-height: 500px;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 0.8rem;
+    box-shadow: var(--elevation-1);
+}
+
+.debug-container pre {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    margin: 0;
 }

@@ -282,15 +282,22 @@ fn set_panic_hook() {
 }
 
 const PREV_CLOSE_SEL_STR: &str = "section[class*='StocksEtfReitDataList'] ul li:first-child dd span[class*='StyledNumber__value']";
-const NAME_SEL_STR: &str = "h1";
-const PRICE_SEL_STR: &str =
-    "div[class*='_CommonPriceBoard__priceBlock'] span[class*='_StyledNumber__value']";
-const CHANGE_SEL_STR: &str =
-    "span[class*='_PriceChangeLabel__primary'] span[class*='_StyledNumber__value']";
-const CHANGE_RATE_SEL_STR: &str =
-    "span[class*='_PriceChangeLabel__secondary'] span[class*='_StyledNumber__value']";
-const TIME_SEL_STR_1: &str = "li[class*='_CommonPriceBoard__time'] time";
-const TIME_SEL_STR_2: &str = "span[class*='_Time']";
+const NAME_SEL_STR_1: &str = "h1";
+const NAME_SEL_STR_2: &str = "div[class*='Title'] h1";
+const NAME_SEL_STR_3: &str = "h1 span:first-child";
+const PRICE_SEL_STR_1: &str =
+    "div[class*='PriceBoard__priceBlock'] span[class*='StyledNumber__value']";
+const PRICE_SEL_STR_2: &str =
+    "div[class*='PriceBoard__price'] span[class*='StyledNumber__value']";
+const PRICE_SEL_STR_3: &str =
+    "span[class*='StyledNumber__value']";
+const CHANGE_SEL_STR_1: &str =
+    "span[class*='PriceChangeLabel__primary'] span[class*='StyledNumber__value']";
+const CHANGE_RATE_SEL_STR_1: &str =
+    "span[class*='PriceChangeLabel__secondary'] span[class*='StyledNumber__value']";
+const TIME_SEL_STR_1: &str = "li[class*='CommonPriceBoard__time'] time";
+const TIME_SEL_STR_2: &str = "span[class*='Time']";
+const TIME_SEL_STR_3: &str = "li[class*='PriceBoard__time'] time";
 
 lazy_static! {
     static ref PRELOADED_STATE_REGEX: Regex = 
@@ -298,18 +305,28 @@ lazy_static! {
             .expect("Failed to compile regex");
     static ref PREV_CLOSE_SELECTOR: Selector = 
         Selector::parse(PREV_CLOSE_SEL_STR).expect("Failed to compile selector");
-    static ref NAME_SELECTOR: Selector = 
-        Selector::parse(NAME_SEL_STR).expect("Failed to compile selector");
-    static ref PRICE_SELECTOR: Selector = 
-        Selector::parse(PRICE_SEL_STR).expect("Failed to compile selector");
-    static ref CHANGE_SELECTOR: Selector = 
-        Selector::parse(CHANGE_SEL_STR).expect("Failed to compile selector");
-    static ref CHANGE_RATE_SELECTOR: Selector = 
-        Selector::parse(CHANGE_RATE_SEL_STR).expect("Failed to compile selector");
+    static ref NAME_SELECTOR_1: Selector = 
+        Selector::parse(NAME_SEL_STR_1).expect("Failed to compile selector");
+    static ref NAME_SELECTOR_2: Selector = 
+        Selector::parse(NAME_SEL_STR_2).expect("Failed to compile selector");
+    static ref NAME_SELECTOR_3: Selector = 
+        Selector::parse(NAME_SEL_STR_3).expect("Failed to compile selector");
+    static ref PRICE_SELECTOR_1: Selector = 
+        Selector::parse(PRICE_SEL_STR_1).expect("Failed to compile selector");
+    static ref PRICE_SELECTOR_2: Selector = 
+        Selector::parse(PRICE_SEL_STR_2).expect("Failed to compile selector");
+    static ref PRICE_SELECTOR_3: Selector = 
+        Selector::parse(PRICE_SEL_STR_3).expect("Failed to compile selector");
+    static ref CHANGE_SELECTOR_1: Selector = 
+        Selector::parse(CHANGE_SEL_STR_1).expect("Failed to compile selector");
+    static ref CHANGE_RATE_SELECTOR_1: Selector = 
+        Selector::parse(CHANGE_RATE_SEL_STR_1).expect("Failed to compile selector");
     static ref TIME_SELECTOR_1: Selector = 
         Selector::parse(TIME_SEL_STR_1).expect("Failed to compile selector");
     static ref TIME_SELECTOR_2: Selector = 
         Selector::parse(TIME_SEL_STR_2).expect("Failed to compile selector");
+    static ref TIME_SELECTOR_3: Selector = 
+        Selector::parse(TIME_SEL_STR_3).expect("Failed to compile selector");
 }
 
 struct DataSource {
@@ -441,7 +458,13 @@ async fn fetch_single_code(code: String, keys: Option<Vec<String>>) -> CodeResul
                 }
 
                 match serde_json::from_str(json_str) {
-                    Ok(data) => process_json_data(&code, &data, &body, keys.as_ref()),
+                    Ok(data) => {
+                        // Try JSON first, if it fails to find the code, fallback to DOM
+                        match process_json_data(&code, &data, &body, keys.as_ref()) {
+                            Ok(res) => Ok(res),
+                            Err(_) => process_dom_data(&code, &body, keys.as_ref()),
+                        }
+                    },
                     Err(e) => {
                         console_log!("JSON parse error for {}: {}", code, e);
                         process_dom_data(&code, &body, keys.as_ref())
@@ -684,40 +707,71 @@ fn process_dom_data(
     for key in &keys_to_process {
         let (value, selector_used) = match key.as_str() {
             "code" => (Some(code.to_string()), None),
-            "name" => (
-                document
-                    .select(&NAME_SELECTOR)
-                    .next()
-                    .map(|el| el.text().collect::<String>().trim().to_string()),
-                Some(NAME_SEL_STR),
-            ),
-            "price" => (
-                document
-                    .select(&PRICE_SELECTOR)
-                    .next()
-                    .map(|el| el.text().collect::<String>().trim().to_string()),
-                Some(PRICE_SEL_STR),
-            ),
-            "price_change" => (
-                document
-                    .select(&CHANGE_SELECTOR)
-                    .next()
-                    .map(|el| el.text().collect::<String>().trim().to_string()),
-                Some(CHANGE_SEL_STR),
-            ),
-            "price_change_rate" => (
-                document
-                    .select(&CHANGE_RATE_SELECTOR)
-                    .next()
-                    .map(|el| el.text().collect::<String>().trim().to_string()),
-                Some(CHANGE_RATE_SEL_STR),
-            ),
+            "name" => {
+                let mut found = (None, None);
+                let selectors = vec![
+                    (NAME_SEL_STR_3, &*NAME_SELECTOR_3),
+                    (NAME_SEL_STR_2, &*NAME_SELECTOR_2),
+                    (NAME_SEL_STR_1, &*NAME_SELECTOR_1),
+                ];
+                for (sel_str, selector) in selectors {
+                    if let Some(el) = document.select(selector).next() {
+                        let raw_name = el.text().collect::<String>().trim().to_string();
+                        // "の指数情報" などの余計な記述があればカットする
+                        let clean_name = raw_name.split("の指数情報").next().unwrap_or(&raw_name).trim().to_string();
+                        found = (Some(clean_name), Some(sel_str));
+                        break;
+                    }
+                }
+                found
+            },
+            "price" => {
+                let mut found = (None, None);
+                let selectors = vec![
+                    (PRICE_SEL_STR_1, &*PRICE_SELECTOR_1),
+                    (PRICE_SEL_STR_2, &*PRICE_SELECTOR_2),
+                    (PRICE_SEL_STR_3, &*PRICE_SELECTOR_3),
+                ];
+                for (sel_str, selector) in selectors {
+                    if let Some(el) = document.select(selector).next() {
+                        found = (Some(el.text().collect::<String>().trim().to_string()), Some(sel_str));
+                        break;
+                    }
+                }
+                found
+            },
+            "price_change" => {
+                let mut found = (None, None);
+                let selectors = vec![(CHANGE_SEL_STR_1, &*CHANGE_SELECTOR_1)];
+                for (sel_str, selector) in selectors {
+                    if let Some(el) = document.select(selector).next() {
+                        found = (Some(el.text().collect::<String>().trim().to_string()), Some(sel_str));
+                        break;
+                    }
+                }
+                found
+            },
+            "price_change_rate" => {
+                let mut found = (None, None);
+                let selectors = vec![(CHANGE_RATE_SEL_STR_1, &*CHANGE_RATE_SELECTOR_1)];
+                for (sel_str, selector) in selectors {
+                    if let Some(el) = document.select(selector).next() {
+                        found = (Some(el.text().collect::<String>().trim().to_string()), Some(sel_str));
+                        break;
+                    }
+                }
+                found
+            },
             "update_time" => {
                 let mut found = (None, None);
                 let selectors: Vec<(&str, &Selector)> = if code == "^DJI" {
                     vec![(TIME_SEL_STR_2, &*TIME_SELECTOR_2), (TIME_SEL_STR_1, &*TIME_SELECTOR_1)]
                 } else {
-                    vec![(TIME_SEL_STR_1, &*TIME_SELECTOR_1), (TIME_SEL_STR_2, &*TIME_SELECTOR_2)]
+                    vec![
+                        (TIME_SEL_STR_1, &*TIME_SELECTOR_1),
+                        (TIME_SEL_STR_2, &*TIME_SELECTOR_2),
+                        (TIME_SEL_STR_3, &*TIME_SELECTOR_3),
+                    ]
                 };
 
                 for (sel_str, selector) in selectors {
@@ -798,7 +852,7 @@ fn get_data_sources() -> Vec<DataSource> {
                 ("price_change_rate", "changePriceRate"),
                 ("update_time", "japanUpdateTime"),
             ]),
-            strip_suffix: false,
+            strip_suffix: true,
         },
     ]
 }

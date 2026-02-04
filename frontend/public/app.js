@@ -15,6 +15,7 @@ let addStockModal, modalTitle, stockInput, brokerInput, quantityInput, priceInpu
 let settingsModal, apiEndpointInput, refreshIntervalInput, themeToggle, saveSettingsBtn, cancelSettingsBtn, settingsBtn;
 let refreshBtn, toast;
 let signalsSection, signalsContainer, clearSignalsBtn;
+let debugJsonResponse;
 
 // Initialize
 function init() {
@@ -50,6 +51,7 @@ function init() {
     signalsSection = document.getElementById('signalsSection');
     signalsContainer = document.getElementById('signalsContainer');
     clearSignalsBtn = document.getElementById('clearSignalsBtn');
+    debugJsonResponse = document.getElementById('debugJsonResponse');
 
     loadSettings();
 
@@ -134,9 +136,33 @@ function setupEventListeners() {
 
     // Close modals on backdrop click
     window.addEventListener('click', (e) => {
-        if (e.target === addStockModal) addStockModal.classList.remove('active');
         if (e.target === settingsModal) settingsModal.classList.remove('active');
     });
+
+    // Toast Copy to Clipboard
+    if (toast) {
+        toast.addEventListener('click', () => {
+            const text = toast.textContent;
+            if (!text || text.includes('Copied to clipboard')) return;
+
+            navigator.clipboard.writeText(text).then(() => {
+                const originalText = text;
+                const originalClass = toast.className;
+
+                toast.textContent = 'Copied to clipboard!';
+                toast.classList.add('success');
+
+                setTimeout(() => {
+                    if (toast.textContent === 'Copied to clipboard!') {
+                        toast.textContent = originalText;
+                        toast.className = originalClass;
+                    }
+                }, 1500);
+            }).catch(err => {
+                console.error('Failed to copy text: ', err);
+            });
+        });
+    }
 }
 
 // Modal Functions
@@ -207,6 +233,11 @@ async function fetchData() {
 
         const data = await response.json();
         console.log('API Response:', data);
+
+        // Update debug display
+        if (debugJsonResponse) {
+            debugJsonResponse.textContent = JSON.stringify(data, null, 2);
+        }
 
         // Check for individual errors
         const errors = data.filter(item => item.error).map(item => `${item.code}: ${item.error}`);
@@ -702,7 +733,11 @@ function handleSaveSettings() {
 function showToast(msg, type = 'success') {
     toast.textContent = msg;
     toast.className = `toast show ${type}`;
-    setTimeout(() => toast.classList.remove('show'), 3000);
+    toast.style.pointerEvents = 'auto'; // Enable clicking when shown
+    setTimeout(() => {
+        toast.classList.remove('show');
+        toast.style.pointerEvents = 'none'; // Disable when hidden
+    }, 6000);
 }
 
 function startAutoRefresh() {
