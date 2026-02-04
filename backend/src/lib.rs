@@ -378,31 +378,54 @@ async fn fetch_single_code(code: String, keys: Option<Vec<String>>) -> CodeResul
         format!("https://finance.yahoo.co.jp/quote/{}.T/", code)
     };
 
-    let url = match url_str.parse() {
-        Ok(u) => u,
+    let headers = Headers::new();
+    let _ = headers.set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+    let _ = headers.set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7");
+    let _ = headers.set("Accept-Language", "ja,en-US;q=0.9,en;q=0.8");
+
+    let req = Request::new_with_init(
+        &url_str,
+        &RequestInit {
+            headers,
+            ..RequestInit::default()
+        },
+    );
+
+    let req = match req {
+        Ok(r) => r,
         Err(e) => {
             return CodeResult {
-                code,
+                code: code.clone(),
                 data: None,
-                error: Some(format!("Invalid URL: {}", e)),
+                error: Some(format!("Failed to create request: {}", e)),
             }
         }
     };
 
-    let body = match Fetch::Url(url).send().await {
-        Ok(mut resp) => match resp.text().await {
-            Ok(text) => text,
-            Err(e) => {
+    let body = match Fetch::Request(req).send().await {
+        Ok(mut resp) => {
+            if resp.status_code() != 200 {
+                let status = resp.status_code();
                 return CodeResult {
-                    code,
+                    code: code.clone(),
                     data: None,
-                    error: Some(format!("Failed to read response text: {}", e)),
+                    error: Some(format!("HTTP Error {}: {}", status, code)),
+                }
+            }
+            match resp.text().await {
+                Ok(text) => text,
+                Err(e) => {
+                    return CodeResult {
+                        code: code.clone(),
+                        data: None,
+                        error: Some(format!("Failed to read response text: {}", e)),
+                    }
                 }
             }
         },
         Err(e) => {
             return CodeResult {
-                code,
+                code: code.clone(),
                 data: None,
                 error: Some(format!("Failed to fetch URL: {}", e)),
             }

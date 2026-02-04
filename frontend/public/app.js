@@ -108,14 +108,26 @@ function setupEventListeners() {
 
             try {
                 let baseUrl = settings.apiEndpoint || window.location.origin;
-                const response = await fetch(`${baseUrl}/api/signals`, { method: 'DELETE' });
+                // Remove trailing slashes
+                baseUrl = baseUrl.replace(/\/+$/, "");
+
+                const response = await fetch(`${baseUrl}/api/signals`, {
+                    method: 'DELETE',
+                    mode: 'cors',
+                    cache: 'no-cache'
+                });
+
                 if (response.ok) {
                     renderSignals([]);
                     showToast('All signals cleared from database');
+                } else {
+                    const errorText = await response.text();
+                    showToast(`Error: ${response.status}`, 'error');
+                    console.error('Clear failed:', response.status, errorText);
                 }
             } catch (error) {
                 console.error('Clear signals error:', error);
-                showToast('Failed to clear signals', 'error');
+                showToast(`Network Error: ${error.message}`, 'error');
             }
         });
     }
@@ -162,6 +174,8 @@ window.openEditStockModal = openEditStockModal;
 
 // Data Management
 async function fetchData() {
+    if (refreshBtn) refreshBtn.classList.add('spinning');
+
     // Extract unique codes from stock objects
     const stockCodes = [...new Set(stocks.map(s => s.code))];
     const allCodes = [...INDICES_CODES, ...stockCodes];
@@ -170,6 +184,7 @@ async function fetchData() {
         renderIndices([]);
         renderWatchlist([]);
         calculatePortfolio([]);
+        if (refreshBtn) refreshBtn.classList.remove('spinning');
         return;
     }
 
@@ -185,10 +200,20 @@ async function fetchData() {
         const url = `${baseUrl}/api/scrape?code=${encodeURIComponent(codesParam)}`;
 
         const response = await fetch(url);
-        if (!response.ok) throw new Error('Network response was not ok');
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Server returned ${response.status}: ${errorText}`);
+        }
 
         const data = await response.json();
         console.log('API Response:', data);
+
+        // Check for individual errors
+        const errors = data.filter(item => item.error).map(item => `${item.code}: ${item.error}`);
+        if (errors.length > 0) {
+            console.error('Some codes failed to fetch:', errors);
+            showToast(`Some data could not be loaded: ${errors.slice(0, 2).join(', ')}${errors.length > 2 ? '...' : ''}`, 'error');
+        }
 
         // Split data
         const indicesData = data.filter(item => {
@@ -209,6 +234,8 @@ async function fetchData() {
     } catch (error) {
         console.error('Fetch error:', error);
         showToast('Failed to fetch data', 'error');
+    } finally {
+        if (refreshBtn) refreshBtn.classList.remove('spinning');
     }
 
     // Also fetch latest signals
@@ -273,6 +300,9 @@ function renderSignals(signals) {
 
 // New function for Update & Analyze
 async function handleUpdateAndAnalyze() {
+    const updateAnalyzeBtn = document.getElementById('updateAnalyzeBtn');
+    if (updateAnalyzeBtn) updateAnalyzeBtn.classList.add('spinning');
+
     showToast('Updating data and analyzing signals...', 'info');
     try {
         let baseUrl = settings.apiEndpoint;
@@ -301,7 +331,14 @@ async function handleUpdateAndAnalyze() {
         console.log('Update & Analyze Result:', result);
 
         if (result.success) {
-            showToast('Data update and analysis complete!', 'success');
+            const errorLogs = result.logs ? result.logs.filter(log => log.includes('Error') || log.includes('No data')) : [];
+
+            if (errorLogs.length > 0) {
+                showToast(`Update completed with some errors: ${errorLogs.slice(0, 1).join(', ')}`, 'error');
+            } else {
+                showToast('Data update and analysis complete!', 'success');
+            }
+
             // 更新後に最新のデータを取得・表示
             await fetchData();
             await fetchSignals();
@@ -312,6 +349,8 @@ async function handleUpdateAndAnalyze() {
     } catch (error) {
         console.error('Update & Analyze error:', error);
         showToast(`Failed to update data and analyze signals: ${error.message}`, 'error');
+    } finally {
+        if (updateAnalyzeBtn) updateAnalyzeBtn.classList.remove('spinning');
     }
 }
 
@@ -662,7 +701,7 @@ function handleSaveSettings() {
 // Utils
 function showToast(msg, type = 'success') {
     toast.textContent = msg;
-    toast.className = 'toast show';
+    toast.className = `toast show ${type}`;
     setTimeout(() => toast.classList.remove('show'), 3000);
 }
 

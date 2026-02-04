@@ -3,13 +3,15 @@
 use worker::*;
 use crate::models;
 use serde_json::Value;
-use chrono::{NaiveDate, NaiveDateTime};
+use chrono::{NaiveDate};
 
 pub async fn fetch_stock_info(code: &str) -> Result<models::StockInfo> {
     let url = format!("https://query1.finance.yahoo.com/v1/finance/search?q={}", code);
     
-    let mut headers = Headers::new();
+    let headers = Headers::new();
     headers.set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")?;
+    headers.set("Accept", "application/json, text/plain, */*")?;
+    headers.set("Accept-Language", "ja,en-US;q=0.9,en;q=0.8")?;
 
     let req = Request::new_with_init(
         &url,
@@ -43,9 +45,10 @@ pub async fn fetch_stock_data(code: &str, period_days: u32) -> Result<Vec<models
         code, range
     );
 
-    let mut headers = Headers::new();
+    let headers = Headers::new();
     headers.set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")?;
-    headers.set("Accept", "application/json")?;
+    headers.set("Accept", "application/json, text/plain, */*")?;
+    headers.set("Accept-Language", "ja,en-US;q=0.9,en;q=0.8")?;
 
     let req = Request::new_with_init(
         &url_str,
@@ -77,8 +80,8 @@ pub async fn fetch_stock_data(code: &str, period_days: u32) -> Result<Vec<models
 
             for i in 0..timestamps.len() {
                 let ts = timestamps[i].as_i64().unwrap_or(0);
-                let date = NaiveDateTime::from_timestamp_opt(ts, 0)
-                    .map(|dt| dt.date())
+                let date = chrono::DateTime::from_timestamp(ts, 0)
+                    .map(|dt| dt.naive_utc().date())
                     .unwrap_or_else(|| NaiveDate::from_ymd_opt(2000, 1, 1).unwrap());
 
                 let close = closes.and_then(|a| a.get(i)).and_then(|v| v.as_f64());
