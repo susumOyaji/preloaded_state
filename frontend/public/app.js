@@ -258,6 +258,7 @@ async function fetchData() {
         });
         console.log('Watchlist Data:', watchlistData);
 
+        console.log('Indices Data (before render):', indicesData);
         renderIndices(indicesData);
         renderWatchlist(watchlistData);
         calculatePortfolio(watchlistData);
@@ -388,15 +389,47 @@ async function handleUpdateAndAnalyze() {
 
 // Rendering
 function renderIndices(data) {
+    console.log('renderIndices called with data:', data); // 追加
     indicesContainer.innerHTML = '';
     const sortedData = INDICES_CODES.map(code =>
         data.find(item => (item.code === code || item.data?.code === code))
     ).filter(Boolean);
+    console.log('renderIndices sortedData:', sortedData); // 追加
 
     sortedData.forEach(item => {
         indicesContainer.appendChild(createCard(item, true));
     });
 }
+
+// --- Native Drag and Drop ---
+// Helper to find the element to drop 'before'
+function getDragAfterElement(container, x) {
+    const draggableElements = [...container.querySelectorAll('.stock-card:not(.dragging)')];
+
+    return draggableElements.reduce((closest, child) => {
+        const box = child.getBoundingClientRect();
+        const offset = x - box.left - box.width / 2;
+        if (offset < 0 && offset > closest.offset) {
+            return { offset: offset, element: child };
+        } else {
+            return closest;
+        }
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
+}
+
+// Dynamically add styles for dragging
+const dragStyles = document.createElement('style');
+dragStyles.innerHTML = `
+    .stock-card.dragging {
+        opacity: 0.5;
+        border: 2px dashed var(--primary);
+    }
+    .watchlist-grid {
+        position: relative;
+    }
+`;
+document.head.appendChild(dragStyles);
+// --- End of Native Drag and Drop ---
 
 function renderWatchlist(data) {
     watchlistContainer.innerHTML = '';
@@ -407,7 +440,6 @@ function renderWatchlist(data) {
     }
     emptyState.classList.add('hidden');
 
-    // Create a lookup map for API data by code
     const apiDataMap = {};
     data.forEach(item => {
         if (item.code) {
@@ -415,7 +447,6 @@ function renderWatchlist(data) {
         }
     });
 
-    // Group stocks by broker
     const groupedByBroker = {};
     stocks.forEach(stock => {
         const brokerKey = stock.broker || 'Other';
@@ -426,32 +457,96 @@ function renderWatchlist(data) {
         groupedByBroker[brokerKey].push({ ...stock, apiData });
     });
 
-    // Sort broker names: non-empty first, then 'Other'
     const brokerNames = Object.keys(groupedByBroker).sort((a, b) => {
         if (a === 'Other') return 1;
         if (b === 'Other') return -1;
         return a.localeCompare(b);
     });
-    console.log('groupedByBroker:', groupedByBroker);
 
-    // Render each broker group with horizontal grid
     brokerNames.forEach(brokerName => {
-        console.log(`Rendering broker: ${brokerName}, stocks:`, groupedByBroker[brokerName]);
-        // Create broker header
         const brokerHeader = document.createElement('div');
         brokerHeader.style.cssText = 'margin-top: 24px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid var(--primary); font-size: 1.1rem; font-weight: 500; color: var(--primary);';
         brokerHeader.textContent = brokerName;
         watchlistContainer.appendChild(brokerHeader);
 
-        // Create horizontal grid for this broker's stocks
         const brokerGrid = document.createElement('div');
         brokerGrid.className = 'watchlist-grid';
         brokerGrid.style.marginBottom = '16px';
+        brokerGrid.setAttribute('data-broker-name', brokerName); // Set broker name for drop logic
+
+        // --- Native Drag and Drop Listeners for Container ---
+        brokerGrid.addEventListener('dragover', e => {
+            e.preventDefault();
+            const afterElement = getDragAfterElement(brokerGrid, e.clientX);
+            const draggable = document.querySelector('.dragging');
+            if (draggable) {
+                 if (afterElement == null) {
+                    brokerGrid.appendChild(draggable);
+                } else {
+                    brokerGrid.insertBefore(draggable, afterElement);
+                }
+            }
+        });
+
+        brokerGrid.addEventListener('drop', e => {
+            e.preventDefault();
+             // Re-order the global `stocks` array
+            const newOrderIds = Array.from(brokerGrid.children).map(child => {
+                return {
+                    code: child.getAttribute('data-code'),
+                    broker: child.getAttribute('data-broker') || ''
+                };
+            });
+
+            // Rebuild the stocks array preserving the new order within this broker group
+            const reorderedStocks = [];
+            const otherBrokerStocks = stocks.filter(s => (s.broker || 'Other') !== brokerName);
+            
+            const thisBrokerStocks = [];
+            newOrderIds.forEach(id => {
+                const stock = stocks.find(s => s.code === id.code && (s.broker || '') === id.broker);
+                if(stock) thisBrokerStocks.push(stock);
+            });
+
+            // A bit complex: we need to place the re-ordered stocks back correctly
+            // Find the original position of the first stock of this broker
+            const firstStockOfBroker = stocks.find(s => (s.broker || 'Other') === brokerName);
+            const originalIndex = stocks.indexOf(firstStockOfBroker);
+
+            const finalStocks = [];
+            const addedBrokerStocks = new Set();
+            
+            stocks.forEach(s => {
+                const sBroker = s.broker || 'Other';
+                if(sBroker === brokerName){
+                    if(!addedBrokerStocks.has(brokerName)){
+                        finalStocks.push(...thisBrokerStocks);
+                        addedBrokerStocks.add(brokerName);
+                    }
+                } else {
+                    finalStocks.push(s);
+                }
+            });
+            
+            stocks = finalStocks;
+            saveStocks();
+            console.log("New stock order saved for broker:", brokerName);
+        });
+        // --- End of Native Drag and Drop Listeners ---
+
 
         groupedByBroker[brokerName].forEach(item => {
-            console.log(`Creating card for:`, item);
             const card = createCard(item, false);
-            console.log(`Card created:`, card);
+            
+            // --- Native Drag and Drop Listeners for Card ---
+            card.addEventListener('dragstart', () => {
+                card.classList.add('dragging');
+            });
+            card.addEventListener('dragend', () => {
+                card.classList.remove('dragging');
+            });
+            // --- End of Native Drag and Drop Listeners ---
+
             brokerGrid.appendChild(card);
         });
 
@@ -499,20 +594,23 @@ function createCard(item, isIndex) {
     const colorClass = isPositive ? 'text-success' : 'text-danger';
     const prefix = isPositive ? '+' : '';
 
+    // Sanitize display values (Moved these lines up)
+    const safeName = escapeHtml(name);
+    const safeCode = escapeHtml(code);
+    const safeBroker = escapeHtml(broker);
+
     const card = document.createElement('div');
     card.className = 'stock-card';
+    card.setAttribute('data-code', safeCode);
+    card.setAttribute('data-broker', safeBroker);
 
     let actionButtonsHtml = '';
     let portfolioHtml = '';
     let updateTimeHtml = '';
     let brokerHtml = '';
 
-    // Sanitize display values
-    const safeName = escapeHtml(name);
-    const safeCode = escapeHtml(code);
-    const safeBroker = escapeHtml(broker);
-
     if (!isIndex) {
+        card.setAttribute('draggable', 'true'); // Make cards draggable
         // Escape broker name for onclick (JS string escape)
         const brokerEscaped = broker.replace(/'/g, "\\'");
 
@@ -748,6 +846,7 @@ function startAutoRefresh() {
 // Storage
 function saveStocks() {
     localStorage.setItem('stocks_v3', JSON.stringify(stocks));
+    console.log('stocks saved:', JSON.parse(localStorage.getItem('stocks_v3'))); // 追加
 }
 
 function loadStocks() {
@@ -756,6 +855,7 @@ function loadStocks() {
     if (savedV3) {
         try {
             stocks = JSON.parse(savedV3);
+            console.log('stocks loaded (v3):', stocks); // 追加
             return;
         } catch (e) { console.error('Error loading v3 stocks', e); }
     }
@@ -769,6 +869,7 @@ function loadStocks() {
                 // Migrate: add broker field
                 stocks = oldStocks.map(stock => ({ ...stock, broker: stock.broker || '' }));
                 saveStocks(); // Save as v3
+                console.log('stocks migrated from v2 to v3:', stocks); // 追加
                 return;
             }
         } catch (e) { console.error('Error loading v2 stocks', e); }
@@ -783,6 +884,7 @@ function loadStocks() {
                 // Migrate
                 stocks = oldStocks.map(code => ({ code, broker: '', quantity: 0, avgPrice: 0 }));
                 saveStocks(); // Save as v3
+                console.log('stocks migrated from v1 to v3:', stocks); // 追加
                 return;
             }
         } catch (e) { console.error('Error loading v1 stocks', e); }
@@ -793,6 +895,7 @@ function loadStocks() {
         { code: '7203.T', broker: '', quantity: 100, avgPrice: 2000 },
         { code: '9984.T', broker: '', quantity: 0, avgPrice: 0 }
     ];
+    console.log('stocks loaded (default):', stocks); // 追加
 }
 
 function saveSettings() {

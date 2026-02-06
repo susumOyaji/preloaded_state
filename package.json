@@ -8,6 +8,6 @@
     "deploy:all": "npm run deploy:backend && npm run deploy:frontend"
   },
   "devDependencies": {
-    "wrangler": "^4.62.0"
+    "wrangler": "^4.63.0"
   }
 }

@@ -627,3 +627,10 @@ body {
     word-wrap: break-word;
     margin: 0;
 }
+
+/* SortableJS ghost class */
+.sortable-ghost {
+    opacity: 0.4;
+    background-color: var(--primary-container);
+    border: 2px dashed var(--primary);
+}

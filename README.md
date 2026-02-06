@@ -1,3 +1,4 @@
+
 # Yahoo Finance Tracker
 
 Yahoo Finance Japanから株価、指数、為替データをリアルタイムで取得・表示するWebアプリケーションです。
@@ -19,6 +20,11 @@ Yahoo Finance Japanから株価、指数、為替データをリアルタイム�
 ## セットアップとデプロイ
 
 ルートディレクトリから `npm` コマンドを使用してデプロイを行います。
+
+###　バージョンアップコマンド
+npm install -D wrangler@latest 
+
+
 
 ### 1. 初回準備（D1 データベース）
 

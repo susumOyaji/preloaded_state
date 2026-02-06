@@ -40,10 +40,21 @@ pub async fn fetch_stock_data(code: &str, period_days: u32) -> Result<Vec<models
     console_log!("fetch_stock_data (JSON v8) with User-Agent for code: {}", code);
     
     let range = format!("{}d", period_days + 10);
-    let url_str = format!(
-        "https://query1.finance.yahoo.com/v8/finance/chart/{}?interval=1d&range={}",
-        code, range
-    );
+    let url_str = if code.starts_with('^')
+        || code.contains('=')
+        || code.ends_with(".T")
+        || code.ends_with(".O")
+    {
+        format!(
+            "https://query1.finance.yahoo.com/v8/finance/chart/{}?interval=1d&range={}",
+            code, range
+        )
+    } else {
+        format!(
+            "https://query1.finance.yahoo.com/v8/finance/chart/{}.T?interval=1d&range={}",
+            code, range
+        )
+    };
 
     let headers = Headers::new();
     headers.set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")?;

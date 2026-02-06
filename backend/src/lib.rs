@@ -75,7 +75,21 @@ async fn handle_get_stock_info(_req: Request, ctx: RouteContext<()>) -> Result<R
 
         Ok(info) => Response::from_json(&info),
 
-        Err(e) => Response::error(format!("Error fetching stock info: {}", e), 500),
+                        Err(e) => {
+
+                            let error_resp = if e.to_string().contains("Could not find stock info") {
+
+                                Response::error(format!("Stock info not found for code: {}", code), 404)
+
+                            } else {
+
+                                Response::error(format!("Error fetching stock info: {}", e), 500)
+
+                            };
+
+                            cors_response(error_resp?)
+
+                        }
 
     }
 
@@ -91,11 +105,13 @@ async fn handle_post_stocks(mut req: Request, ctx: RouteContext<()>) -> Result<R
 
     let stock_input: models::StockInput = req.json().await?;
 
-    if stock_input.code.is_empty() || stock_input.name.is_empty() {
+                        if stock_input.code.is_empty() || stock_input.name.is_empty() {
 
-        return Response::error("Code and Name required", 400);
+                            let error_resp = Response::error("Code and Name required", 400);
 
-    }
+                            return cors_response(error_resp?);
+
+                        }
 
     db::add_stock(&d1, stock_input).await?;
 
@@ -178,7 +194,10 @@ async fn handle_post_update(mut req: Request, ctx: RouteContext<()>) -> Result<R
 
     let update_req: models::UpdateRequest = match req.json().await {
         Ok(res) => res,
-        Err(e) => return Response::error(format!("Invalid JSON: {}", e), 400),
+        Err(e) => {
+            let error_resp = Response::error(format!("Invalid JSON: {}", e), 400);
+            return cors_response(error_resp?);
+        },
     };
 
     logs.push(format!(
@@ -423,10 +442,15 @@ async fn fetch_single_code(code: String, keys: Option<Vec<String>>) -> CodeResul
         Ok(mut resp) => {
             if resp.status_code() != 200 {
                 let status = resp.status_code();
+                let error_body = match resp.text().await {
+                    Ok(text) => text,
+                    Err(_) => "Could not read error response body".to_string(),
+                };
+                console_log!("Scrape Error for {}: HTTP Status {}, Body: {}", code, status, error_body);
                 return CodeResult {
                     code: code.clone(),
                     data: None,
-                    error: Some(format!("HTTP Error {}: {}", status, code)),
+                    error: Some(format!("HTTP Error {}: {} - {}", status, code, error_body.chars().take(100).collect::<String>())),
                 }
             }
             match resp.text().await {
@@ -765,7 +789,7 @@ fn process_dom_data(
             "update_time" => {
                 let mut found = (None, None);
                 let selectors: Vec<(&str, &Selector)> = if code == "^DJI" {
-                    vec![(TIME_SEL_STR_2, &*TIME_SELECTOR_2), (TIME_SEL_STR_1, &*TIME_SELECTOR_1)]
+                    vec![(TIME_SEL_STR_1, &*TIME_SELECTOR_1), (TIME_SEL_STR_2, &*TIME_SELECTOR_2)]
                 } else {
                     vec![
                         (TIME_SEL_STR_1, &*TIME_SELECTOR_1),
